@@ -8,6 +8,7 @@ import {
     Sparkles,
     WandSparkles,
 } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const steps = [
@@ -45,6 +46,13 @@ const studioCards = [
 
 export default function IndexPage() {
     const navigate = useNavigate();
+    const [activeCategory, setActiveCategory] = useState<"commerce" | "drama" | "beauty">("commerce");
+    const categoryContent = {
+        commerce: { title: "上新视觉", route: "/image", summary: "夏季上新、商品主视觉、自然光" },
+        drama: { title: "角色分镜", route: "/video", summary: "漫画分镜、角色设定、连续叙事" },
+        beauty: { title: "人像精修", route: "/image", summary: "自然人像、柔和光影、细节质感" },
+    } as const;
+    const currentCategory = categoryContent[activeCategory];
 
     return (
         <main className="home-page h-full overflow-y-auto text-[#10172c]">
@@ -63,15 +71,15 @@ export default function IndexPage() {
                         <p className="home-lead">把灵感放进画布，让图片、文字与视频在同一个创作空间里持续生长。</p>
 
                         <div className="home-category-list" aria-label="创作类型">
-                            <button type="button" className="home-category active" onClick={() => navigate("/image")}>
+                            <button type="button" className={`home-category ${activeCategory === "commerce" ? "active" : ""}`} onClick={() => setActiveCategory("commerce")}>
                                 <Layers3 className="size-5" />
                                 <span>电商</span>
                             </button>
-                            <button type="button" className="home-category" onClick={() => navigate("/video")}>
+                            <button type="button" className={`home-category ${activeCategory === "drama" ? "active" : ""}`} onClick={() => setActiveCategory("drama")}>
                                 <Clapperboard className="size-5" />
                                 <span>漫剧</span>
                             </button>
-                            <button type="button" className="home-category" onClick={() => navigate("/image")}>
+                            <button type="button" className={`home-category ${activeCategory === "beauty" ? "active" : ""}`} onClick={() => setActiveCategory("beauty")}>
                                 <ImageIcon className="size-5" />
                                 <span>美颜</span>
                             </button>
@@ -88,7 +96,7 @@ export default function IndexPage() {
                             ))}
                         </div>
 
-                        <button type="button" className="home-primary-action" onClick={() => navigate("/canvas") }>
+                        <button type="button" className="home-primary-action" onClick={() => navigate(currentCategory.route)}>
                             <span>开始创作</span>
                             <ArrowRight className="size-5" />
                         </button>
@@ -116,22 +124,26 @@ export default function IndexPage() {
                             </div>
 
                             <div className="studio-card-grid">
-                                {studioCards.map(({ eyebrow, title, detail, icon: Icon, className }) => (
-                                    <button type="button" className={`studio-card ${className}`} key={title} onClick={() => navigate(title === "角色分镜" ? "/video" : "/image")}>
+                                {studioCards.map(({ eyebrow, title, detail, icon: Icon, className }, index) => {
+                                    const category = index === 0 ? "commerce" : index === 1 ? "drama" : "beauty";
+                                    const content = categoryContent[category];
+                                    return (
+                                    <button type="button" className={`studio-card ${className} ${activeCategory === category ? "studio-card-selected" : ""}`} key={title} onClick={() => setActiveCategory(category)}>
                                         <span className="studio-card-icon"><Icon className="size-7" /></span>
                                         <span className="studio-card-copy">
                                             <span className="studio-card-eyebrow">{eyebrow}</span>
-                                            <strong>{title}</strong>
+                                            <strong>{content.title}</strong>
                                             <small>{detail}</small>
                                         </span>
                                     </button>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             <div className="studio-summary">
                                 <div>
                                     <span>当前描述</span>
-                                    <strong>夏季上新、漫画分镜、自然人像光</strong>
+                                    <strong>{currentCategory.summary}</strong>
                                 </div>
                                 <b>12 个结果</b>
                             </div>
