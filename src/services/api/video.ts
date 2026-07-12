@@ -11,15 +11,17 @@ import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 type VideoResponse = { id: string; status?: string; error?: { message?: string }; url?: string; result_url?: string; video_url?: string; content?: { video_url?: string; url?: string } | null };
 type ApiVideoResponse = VideoResponse | { code?: number | string; data?: VideoResponse | null; msg?: string; message?: string; error?: { message?: string } };
 type SeedanceTask = {
-    id: string;
+    id?: string;
+    task_id?: string;
+    taskId?: string;
     status?: "queued" | "running" | "succeeded" | "completed" | "failed" | "cancelled" | "expired";
     error?: { code?: string; message?: string } | null;
-    content?: { video_url?: string; url?: string; last_frame_url?: string } | null;
+    content?: unknown;
     url?: string;
     result_url?: string;
     video_url?: string;
 };
-type ApiEnvelope<T> = T | { code?: number | string; data?: T | null; msg?: string; message?: string; error?: { message?: string } };
+type ApiEnvelope<T> = T | { code?: number | string; data?: T | null; result?: T | null; msg?: string; message?: string; error?: { message?: string } };
 type RequestOptions = { signal?: AbortSignal };
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
@@ -182,7 +184,8 @@ function assertSeedanceAudioReferences(audioReferences: ReferenceAudio[]) {
 
 function seedanceApiUrl(config: AiConfig, taskId?: string) {
     if (config.apiFormat === "bytedance") {
-        return buildApiUrl(config.baseUrl, taskId ? `/v3/contents/generations/tasks/${encodeURIComponent(taskId)}` : "/v3/contents/generations");
+        const base = "https://ark.cn-beijing.volces.com/api";
+        return `${base}/v3/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
     }
     return buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
 }
@@ -271,7 +274,14 @@ function unwrapVideoResponse(payload: ApiVideoResponse) {
 }
 
 function unwrapSeedanceTask(payload: ApiEnvelope<SeedanceTask>) {
-    return unwrapEnvelope(payload, "Seedance 接口没有返回任务");
+    if (!payload || typeof payload !== "object") throw new Error("Seedance 接口没有返回任务");
+    const root = payload as Record<string, unknown>;
+    if (root.code !== undefined && root.code !== 0 && root.code !== "0") throw new Error(readApiErrorMessage(payload) || "Seedance 请求失败");
+    const candidates = [root, root.data, root.result, (root.data as Record<string, unknown> | undefined)?.data, (root.result as Record<string, unknown> | undefined)?.data];
+    const task = candidates.find((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
+    if (!task) throw new Error(readApiErrorMessage(payload) || "Seedance 接口没有返回任务");
+    const id = [task.id, task.task_id, task.taskId, root.id, root.task_id, root.taskId].find((value) => typeof value === "string" && value.trim());
+    return { ...(task as SeedanceTask), id: id as string | undefined };
 }
 
 function unwrapEnvelope<T>(payload: ApiEnvelope<T>, emptyMessage: string): T {
@@ -285,7 +295,17 @@ function unwrapEnvelope<T>(payload: ApiEnvelope<T>, emptyMessage: string): T {
 }
 
 function videoResultUrl(payload: VideoResponse | SeedanceTask) {
-    return [payload.video_url, payload.result_url, payload.url, payload.content?.video_url, payload.content?.url].find((url) => typeof url === "string" && (isPublicMediaUrl(url) || /\.mp4(\?|#|$)/i.test(url)));
+    const values: unknown[] = [payload.video_url, payload.result_url, payload.url];
+    if (payload.content && typeof payload.content === "object") {
+        const content = payload.content as Record<string, unknown> | Array<Record<string, unknown>>;
+        const items = Array.isArray(content) ? content : [content];
+        items.forEach((item) => {
+            values.push(item.video_url, item.url);
+            if (item.video_url && typeof item.video_url === "object") values.push((item.video_url as Record<string, unknown>).url);
+            if (item.content && typeof item.content === "object") values.push((item.content as Record<string, unknown>).url, (item.content as Record<string, unknown>).video_url);
+        });
+    }
+    return values.find((url): url is string => typeof url === "string" && (isPublicMediaUrl(url) || /\.mp4(\?|#|$)/i.test(url)));
 }
 
 function readApiErrorMessage(value: unknown): string {

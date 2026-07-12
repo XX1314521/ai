@@ -36,7 +36,7 @@ const modelGroups: ModelGroup[] = [
 const apiFormatOptions: Array<{ label: string; value: ApiCallFormat }> = [
     { label: "OpenAI", value: "openai" },
     { label: "Gemini", value: "gemini" },
-    { label: "字节跳动 Contents Generations", value: "bytedance" },
+    { label: "Seedance", value: "bytedance" },
 ];
 
 const webdavDomainKeys: AppSyncDomainKey[] = ["canvas", "assets", "image-workbench", "video-workbench"];
@@ -570,7 +570,7 @@ function uniqueModels(models: string[]) {
 
 function apiFormatLabel(apiFormat: ApiCallFormat) {
     if (apiFormat === "gemini") return "Gemini";
-    if (apiFormat === "bytedance") return "字节跳动 Contents Generations";
+    if (apiFormat === "bytedance") return "Seedance";
     return "OpenAI";
 }
 
