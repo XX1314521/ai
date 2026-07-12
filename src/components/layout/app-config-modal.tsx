@@ -8,7 +8,7 @@ import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent }
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
 import { useAgentStore } from "@/stores/use-agent-store";
-import { createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { AIKART_BASE_URL, createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -36,6 +36,7 @@ const modelGroups: ModelGroup[] = [
 const apiFormatOptions: Array<{ label: string; value: ApiCallFormat }> = [
     { label: "OpenAI", value: "openai" },
     { label: "Gemini", value: "gemini" },
+    { label: "字节跳动 Contents Generations", value: "bytedance" },
 ];
 
 const webdavDomainKeys: AppSyncDomainKey[] = ["canvas", "assets", "image-workbench", "video-workbench"];
@@ -285,8 +286,10 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Form.Item label="调用格式" className="mb-0">
                                                     <Select value={channel.apiFormat} options={apiFormatOptions} onChange={(value: ApiCallFormat) => updateChannelApiFormat(channel, value)} />
                                                 </Form.Item>
-                                                <Form.Item label="Base URL" className="mb-0">
-                                                    <Input value={channel.baseUrl} onChange={(event) => updateChannel(channel.id, { baseUrl: event.target.value })} />
+                                                <Form.Item label="Base URL（固定）" className="mb-0">
+                                                    <div className="flex h-8 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300" aria-label="固定 Base URL">
+                                                        {AIKART_BASE_URL}
+                                                    </div>
                                                 </Form.Item>
                                                 <Form.Item label="API Key" className="mb-0">
                                                     <Input.Password value={channel.apiKey} onChange={(event) => updateChannel(channel.id, { apiKey: event.target.value })} />
@@ -522,6 +525,7 @@ export function AppConfigModal() {
 }
 
 function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
+    channels = channels.map((channel) => ({ ...channel, baseUrl: AIKART_BASE_URL }));
     const models = modelOptionsFromChannels(channels);
     const imageModels = keepOrSuggest(config.imageModels, filterModelsByCapability(models, "image"), models);
     const videoModels = keepOrSuggest(config.videoModels, filterModelsByCapability(models, "video"), models);
@@ -531,7 +535,7 @@ function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
         ...config,
         channels,
         models,
-        baseUrl: channels[0]?.baseUrl || config.baseUrl,
+        baseUrl: AIKART_BASE_URL,
         apiKey: channels[0]?.apiKey || config.apiKey,
         apiFormat: channels[0]?.apiFormat || config.apiFormat,
         imageModels,
@@ -565,7 +569,9 @@ function uniqueModels(models: string[]) {
 }
 
 function apiFormatLabel(apiFormat: ApiCallFormat) {
-    return apiFormat === "gemini" ? "Gemini" : "OpenAI";
+    if (apiFormat === "gemini") return "Gemini";
+    if (apiFormat === "bytedance") return "字节跳动 Contents Generations";
+    return "OpenAI";
 }
 
 function formatWebdavTime(value: string) {

@@ -14,6 +14,9 @@ export const useThemeStore = create<ThemeStore>()(
             theme: "light",
             setTheme: (theme) => set({ theme: theme === "dark" ? "light" : theme }),
         }),
-        { name: "infinite-canvas:theme_store" },
+        {
+            name: "infinite-canvas:theme_store",
+            merge: (_persisted, current) => current,
+        },
     ),
 );

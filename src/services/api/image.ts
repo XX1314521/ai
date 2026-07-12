@@ -650,6 +650,7 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
 
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (requestConfig.apiFormat === "bytedance") throw new Error("字节跳动 Contents Generations 当前用于视频创作，请在视频工作台中使用");
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     if (requestConfig.apiFormat === "gemini") {
         try {
@@ -686,6 +687,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
 
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (requestConfig.apiFormat === "bytedance") throw new Error("字节跳动 Contents Generations 当前用于视频创作，不支持生图编辑");
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
     if (requestConfig.apiFormat === "gemini") {
@@ -744,6 +746,7 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
 
 export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat">) {
     try {
+        if (config.apiFormat === "bytedance") throw new Error("字节跳动渠道请在模型列表中手动填写模型名");
         if (config.apiFormat === "gemini") {
             const response = await axios.get<GeminiPayload>(geminiApiUrl({ ...defaultGeminiConfig, ...config }), { headers: geminiHeaders({ ...defaultGeminiConfig, ...config }) });
             validateGeminiPayload(response.data);

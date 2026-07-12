@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
-export type ApiCallFormat = "openai" | "gemini";
+export type ApiCallFormat = "openai" | "gemini" | "bytedance";
 
 export type ModelChannel = {
     id: string;
@@ -57,19 +57,18 @@ export type ConfigTabKey = "channels" | "models" | "preferences" | "webdav" | "c
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 export type ModelCapability = "image" | "video" | "text" | "audio";
 const CHANNEL_MODEL_SEPARATOR = "::";
-const OPENAI_BASE_URL = "https://api.openai.com";
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
+export const AIKART_BASE_URL = "https://ai.ikui.cn/";
 
 export const defaultConfig: AiConfig = {
     channelMode: "local",
-    baseUrl: OPENAI_BASE_URL,
+    baseUrl: AIKART_BASE_URL,
     apiKey: "",
     apiFormat: "openai",
     channels: [
         {
             id: "default",
             name: "默认渠道",
-            baseUrl: OPENAI_BASE_URL,
+            baseUrl: AIKART_BASE_URL,
             apiKey: "",
             apiFormat: "openai",
             models: ["gpt-image-2", "grok-imagine-video", "gpt-5.5", "gpt-4o-mini-tts"],
@@ -210,6 +209,7 @@ export const useConfigStore = create<ConfigStore>()(
                     webdav: { ...defaultWebdavSyncConfig, ...persistedWebdav },
                     config: {
                         ...config,
+                        baseUrl: AIKART_BASE_URL,
                         channelMode: "local",
                         apiFormat: normalizeApiFormat(config.apiFormat),
                         channels,
@@ -255,7 +255,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
     return {
         id: channel?.id?.trim() || nanoid(),
         name: channel?.name?.trim() || "新渠道",
-        baseUrl: channel?.baseUrl?.trim() || defaultBaseUrlForApiFormat(apiFormat),
+        baseUrl: AIKART_BASE_URL,
         apiKey: channel?.apiKey || "",
         apiFormat,
         models: uniqueRawModels(channel?.models || []),
@@ -315,7 +315,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
     return {
         ...config,
         model: modelOptionName(value || config.model),
-        baseUrl: channel.baseUrl,
+        baseUrl: AIKART_BASE_URL,
         apiKey: channel.apiKey,
         apiFormat: channel.apiFormat,
     };
@@ -354,11 +354,11 @@ function normalizeChannels(config: AiConfig) {
 }
 
 export function defaultBaseUrlForApiFormat(apiFormat: ApiCallFormat) {
-    return apiFormat === "gemini" ? GEMINI_BASE_URL : OPENAI_BASE_URL;
+    return AIKART_BASE_URL;
 }
 
 function normalizeApiFormat(apiFormat: unknown): ApiCallFormat {
-    return apiFormat === "gemini" ? "gemini" : "openai";
+    return apiFormat === "gemini" || apiFormat === "bytedance" ? apiFormat : "openai";
 }
 
 function uniqueRawModels(models: string[]) {
@@ -370,11 +370,10 @@ function uniqueModelOptions(models: string[]) {
 }
 
 export function buildApiUrl(baseUrl: string, path: string) {
-    let normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-    normalizedBaseUrl = normalizeArkPlanBaseUrl(normalizedBaseUrl);
-    const lowerBaseUrl = normalizedBaseUrl.toLowerCase();
-    const apiBaseUrl = lowerBaseUrl.endsWith("/v1") || lowerBaseUrl.endsWith("/api/v3") || lowerBaseUrl.endsWith("/api/plan/v3") ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-    return `${apiBaseUrl}${path}`;
+    void baseUrl;
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    if (normalizedPath.startsWith("/v3/")) return `${AIKART_BASE_URL.replace(/\/+$/, "")}${normalizedPath}`;
+    return `${AIKART_BASE_URL.replace(/\/+$/, "")}/v1${normalizedPath}`;
 }
 
 function normalizeArkPlanBaseUrl(baseUrl: string) {

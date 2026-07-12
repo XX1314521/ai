@@ -96,7 +96,7 @@ export default function IndexPage() {
                             ))}
                         </div>
 
-                        <button type="button" className="home-primary-action" onClick={() => navigate(currentCategory.route)}>
+                        <button type="button" className="home-primary-action home-category active" onClick={() => navigate(currentCategory.route)}>
                             <span>开始创作</span>
                             <ArrowRight className="size-5" />
                         </button>

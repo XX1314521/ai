@@ -388,6 +388,7 @@
         pointer-events: none;
     }
     .home-primary-action span, .home-primary-action svg { position: relative; z-index: 1; }
+    .home-primary-action.home-category.active { color: #17233b; background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(218, 242, 255, 0.66) 52%, rgba(255, 245, 214, 0.7)); }
     .home-category, .studio-card { -webkit-tap-highlight-color: transparent; }
     .home-category.active { box-shadow: 0 12px 24px rgba(220, 169, 37, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.62); }
     .home-category.active::after {
