@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6fbff" />
+    <title>VOZEB 创作空间</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#canvas" aria-label="VOZEB 首页">
+          <span class="brand-mark"><i></i><i></i><i></i></span>
+          <span>VOZEB</span>
+        </a>
+
+        <nav class="main-nav" aria-label="主导航">
+          <button class="nav-item active" data-page="canvas"><span class="nav-icon"><i data-lucide="layout-dashboard" aria-hidden="true"></i></span><span>我的画布</span></button>
+          <button class="nav-item" data-page="image"><span class="nav-icon"><i data-lucide="wand-sparkles" aria-hidden="true"></i></span><span>生图工作台</span></button>
+          <button class="nav-item" data-page="video"><span class="nav-icon"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span>视频创作台</span></button>
+          <button class="nav-item" data-page="prompts"><span class="nav-icon"><i data-lucide="notebook-tabs" aria-hidden="true"></i></span><span>提示词库</span></button>
+          <button class="nav-item" data-page="assets"><span class="nav-icon"><i data-lucide="images" aria-hidden="true"></i></span><span>我的素材库</span></button>
+          <button class="nav-item" data-page="settings"><span class="nav-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span><span>配置</span></button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="icon-button" id="themeToggle" aria-label="切换主题" title="切换主题">☾</button>
+          <button class="outline-button" id="enterStudio"><span>进入工作台</span><span class="arrow">↗</span></button>
+          <button class="mobile-menu icon-button" id="mobileMenu" aria-label="打开菜单">☰</button>
+        </div>
+      </header>
+
+      <section class="page-view" id="pageView">
+        <section class="hero-view page-panel" data-panel="canvas">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="sparkle">✦</span> AI 创作空间 <span class="eyebrow-line"></span> 从灵感到成片</div>
+            <h1>VOZEB</h1>
+            <p class="hero-subtitle">让每一个想法，都拥有被看见的形状。</p>
+            <p class="hero-description">从画布、图像到视频，在一个流畅的创作空间里<br class="desktop-only" />完成你的下一件作品。</p>
+
+            <div class="category-tabs" role="tablist" aria-label="创作类型">
+              <button class="category-tab selected" data-category="电商" data-color="yellow"><span class="category-icon">▣</span>电商</button>
+              <button class="category-tab" data-category="漫画" data-color="purple"><span class="category-icon">▤</span>漫画</button>
+              <button class="category-tab" data-category="美颜" data-color="mint"><span class="category-icon">▧</span>美颜</button>
+            </div>
+
+            <div class="creation-steps" aria-label="创作流程">
+              <button class="step active" data-step="1"><span>01</span><b>选场景</b></button>
+              <button class="step" data-step="2"><span>02</span><b>加参考</b></button>
+              <button class="step" data-step="3"><span>03</span><b>写描述</b></button>
+              <button class="step" data-step="4"><span>04</span><b>生成</b></button>
+              <button class="step" data-step="5"><span>05</span><b>微调</b></button>
+              <button class="step" data-step="6"><span>06</span><b>保存</b></button>
+            </div>
+
+            <button class="primary-cta" id="startCreate"><span>开始创作</span><span class="cta-arrow">→</span></button>
+            <button class="text-link" id="openCanvas">打开我的画布 <span>↗</span></button>
+          </div>
+
+          <div class="studio-window" id="studioWindow">
+            <div class="window-chrome">
+              <div class="window-title"><span class="traffic red"></span><span class="traffic yellow-dot"></span><span class="traffic green"></span><strong>VOZEB Creative Studio</strong></div>
+              <span class="status-pill"><span class="status-dot"></span>创作任务 / 生成中</span>
+            </div>
+            <div class="studio-content">
+              <div class="studio-heading">
+                <div><span class="section-kicker">AI 创作台</span><h2 id="studioTitle">电商、漫画与美颜</h2></div>
+                <span class="generating-pill">✣ 正在生成</span>
+              </div>
+
+              <div class="feature-card feature-main">
+                <div class="feature-visual visual-yellow"><span class="visual-glyph">▣</span><span class="mini-dots"></span></div>
+                <div class="feature-copy"><span>电商</span><strong>上新视觉</strong><small>商品展示 / 海报 / 详情</small></div>
+                <button class="card-arrow" aria-label="打开电商工作流">↗</button>
+              </div>
+              <div class="feature-grid">
+                <div class="feature-card small-card">
+                  <div class="feature-visual visual-purple"><span class="visual-glyph">▤</span></div>
+                  <div class="feature-copy"><span>漫画</span><strong>角色分镜</strong><small>封面 / 连载 / 对话</small></div>
+                  <button class="card-arrow" aria-label="打开漫画工作流">↗</button>
+                </div>
+                <div class="feature-card small-card">
+                  <div class="feature-visual visual-mint"><span class="visual-glyph">▧</span></div>
+                  <div class="feature-copy"><span>美颜</span><strong>人像精修</strong><small>肤色 / 光影 / 质感</small></div>
+                  <button class="card-arrow" aria-label="打开美颜工作流">↗</button>
+                </div>
+              </div>
+
+              <div class="prompt-summary"><div><span>当前描述</span><strong id="promptSummary">夏季上新、漫画分镜、自然人物光</strong></div><span class="result-count">12 个结果</span></div>
+              <div class="progress-grid">
+                <div class="progress-item"><span>参考图识别</span><strong>完成</strong><i><em style="width: 92%; background: #2cc4ed"></em></i></div>
+                <div class="progress-item"><span>风格生成</span><strong>生成中</strong><i><em style="width: 76%; background: #db43ad"></em></i></div>
+                <div class="progress-item"><span>细节优化</span><strong>待处理</strong><i><em style="width: 35%; background: #ffbf4d"></em></i></div>
+              </div>
+            </div>
+            <div class="studio-footer"><span>●</span> 工作台已准备好，开始你的创作</div>
+          </div>
+          <div class="floating-note">⌘ <span>Agent 创作入口</span></div>
+        </section>
+
+        <section class="workspace-panel page-panel" data-panel="image" hidden>
+          <div class="workspace-header"><div><span class="section-kicker">IMAGE WORKBENCH / 01</span><h2>生图工作台</h2><p>把参考、描述和风格组合成一张完整的画面。</p></div><button class="primary-small" id="generateImage">✦ 生成图片</button></div>
+          <div class="workbench-grid">
+            <div class="prompt-editor panel-card"><div class="card-heading"><h3>创作描述</h3><span class="tiny-label">自动增强</span></div><textarea id="promptInput">夏季新品视觉，清透自然的人物肖像，柔和侧光，浅蓝背景，杂志质感</textarea><div class="editor-tools"><button class="chip">人物肖像</button><button class="chip">清透光影</button><button class="chip">杂志质感</button><button class="chip add-chip">＋ 添加标签</button></div><div class="editor-bottom"><span>剩余 38 / 2000 字</span><button class="ghost-button" id="enhancePrompt">✣ 优化描述</button></div></div>
+            <div class="preview-card panel-card"><div class="card-heading"><h3>画面预览</h3><span class="preview-status">等待生成</span></div><div class="image-preview"><div class="preview-art"><span>VOZEB</span><small>YOUR IDEA, VISUALIZED</small></div><div class="preview-overlay">添加一张参考图开始</div></div><div class="preview-actions"><button class="outline-button" id="uploadReference">▧ 上传参考图</button><button class="primary-small" id="quickGenerate">开始生成 →</button><input type="file" id="fileInput" accept="image/*" hidden /></div></div>
+          </div>
+          <div class="recent-strip"><div class="card-heading"><h3>最近作品</h3><button class="text-link">查看全部 ↗</button></div><div class="recent-items"><div class="recent-thumb thumb-one">春日光影</div><div class="recent-thumb thumb-two">角色设定</div><div class="recent-thumb thumb-three">城市漫游</div><div class="recent-thumb add-thumb">＋<span>新建画布</span></div></div></div>
+        </section>
+
+        <section class="workspace-panel page-panel" data-panel="video" hidden>
+          <div class="workspace-header"><div><span class="section-kicker">VIDEO STUDIO / 02</span><h2>视频创作台</h2><p>用镜头、节奏和声音，把一张图变成一段故事。</p></div><button class="primary-small" id="createVideo">▶ 创建视频</button></div>
+          <div class="video-layout"><div class="timeline-card panel-card"><div class="card-heading"><h3>分镜时间线</h3><span class="tiny-label">00:12 / 00:30</span></div><div class="video-canvas"><div class="play-button">▶</div><span>镜头 01 · 夏日上新</span></div><div class="timeline"><span class="timeline-ruler">00:00　　00:05　　00:10　　00:15　　00:20　　00:25</span><div class="timeline-track"><i></i><b></b><em></em></div></div><div class="video-controls"><button class="icon-button">⏮</button><button class="icon-button">▶</button><button class="icon-button">⏭</button><span></span><button class="icon-button">⌗</button><button class="icon-button">↗</button></div></div><div class="video-settings panel-card"><div class="card-heading"><h3>镜头设置</h3><span class="status-live">实时预览</span></div><label>镜头描述<textarea>人物从画面右侧走入，镜头缓慢推进，阳光穿过树叶形成自然光斑。</textarea></label><label>运动强度<div class="range-row"><input type="range" value="48" /><span>48%</span></div></label><label>画面比例<div class="ratio-options"><button class="ratio active">16:9</button><button class="ratio">9:16</button><button class="ratio">1:1</button></div></label></div></div>
+        </section>
+
+        <section class="library-panel page-panel" data-panel="prompts" hidden>
+          <div class="workspace-header"><div><span class="section-kicker">PROMPT LIBRARY / 03</span><h2>提示词库</h2><p>保存好用的表达，让下一次灵感更快落地。</p></div><button class="primary-small" id="newPrompt">＋ 新建提示词</button></div><div class="library-toolbar"><div class="search-box"><span>⌕</span><input id="promptSearch" placeholder="搜索提示词、风格或标签" /></div><div class="filter-buttons"><button class="filter active">全部</button><button class="filter">电商</button><button class="filter">漫画</button><button class="filter">人像</button></div></div><div class="prompt-grid" id="promptGrid"><article class="prompt-card" data-tags="电商 人像"><div class="prompt-top"><span class="prompt-color orange"></span><span>电商视觉</span><button>•••</button></div><h3>清透自然的夏季新品海报</h3><p>清透自然的人物肖像，柔和侧光，浅蓝背景，杂志质感，留白构图...</p><div class="prompt-meta"><span>今日使用 12 次</span><b>收藏</b></div></article><article class="prompt-card" data-tags="漫画"><div class="prompt-top"><span class="prompt-color purple"></span><span>漫画分镜</span><button>•••</button></div><h3>电影感角色出场分镜</h3><p>低机位，角色从阴影中走出，背景有细微雨雾，电影级光影...</p><div class="prompt-meta"><span>今日使用 8 次</span><b>收藏</b></div></article><article class="prompt-card" data-tags="人像"><div class="prompt-top"><span class="prompt-color mint"></span><span>人像精修</span><button>•••</button></div><h3>自然皮肤与柔和光影</h3><p>保留真实皮肤纹理，柔和自然光，轻微高光，干净背景，精致细节...</p><div class="prompt-meta"><span>今日使用 6 次</span><b>收藏</b></div></article><article class="prompt-card create-prompt" id="createPromptCard"><span>＋</span><strong>创建一个提示词</strong><small>记录你的创作方法</small></article></div></section>
+
+        <section class="library-panel page-panel" data-panel="assets" hidden>
+          <div class="workspace-header"><div><span class="section-kicker">ASSET LIBRARY / 04</span><h2>我的素材库</h2><p>参考图、灵感和生成结果，都在这里保持秩序。</p></div><button class="primary-small" id="uploadAsset">▧ 上传素材</button><input type="file" id="assetInput" accept="image/*,video/*" hidden /></div><div class="asset-toolbar"><div class="search-box"><span>⌕</span><input placeholder="搜索我的素材" /></div><span class="asset-count">共 28 个素材</span><button class="view-toggle active">▦</button><button class="view-toggle">☷</button></div><div class="asset-grid"><div class="asset-card asset-tall"><div class="asset-image asset-gradient-one"><span>NEW<br />FORM</span></div><div><strong>夏季新品参考</strong><small>图片 · 2.4 MB</small></div></div><div class="asset-card"><div class="asset-image asset-gradient-two"><span>FRAME<br />01</span></div><div><strong>人物分镜草图</strong><small>图片 · 1.8 MB</small></div></div><div class="asset-card"><div class="asset-image asset-gradient-three"><span>LIGHT<br />STUDY</span></div><div><strong>光影练习 03</strong><small>图片 · 3.1 MB</small></div></div><div class="asset-card upload-placeholder" id="uploadPlaceholder"><div class="upload-icon">＋</div><strong>拖入素材或点击上传</strong><small>支持 JPG、PNG、WEBP、MP4</small></div></div></section>
+
+        <section class="settings-panel page-panel" data-panel="settings" hidden><div class="settings-heading"><span class="section-kicker">SETTINGS / 05</span><h2>配置</h2><p>调整你的创作偏好与工作空间。</p></div><div class="settings-list panel-card"><div class="setting-row"><div><strong>默认模型</strong><small>生成图像时优先使用的模型</small></div><select><option>VOZEB Vision Pro</option><option>VOZEB Fast</option><option>自定义 API</option></select></div><div class="setting-row"><div><strong>自动保存画布</strong><small>每 30 秒自动保存当前创作</small></div><button class="toggle on"><i></i></button></div><div class="setting-row"><div><strong>生成结果数量</strong><small>每次生成的候选结果数量</small></div><div class="stepper"><button>−</button><b>4</b><button>＋</button></div></div><div class="setting-row"><div><strong>界面语言</strong><small>选择工作空间显示语言</small></div><select><option>简体中文</option><option>English</option></select></div><div class="setting-row danger-row"><div><strong>清除本地缓存</strong><small>清除浏览器中保存的草稿和偏好</small></div><button class="ghost-button">清除缓存</button></div></div></section>
+      </section>
+
+      <footer class="footer-bar"><span><b class="online-dot"></b> 所有系统运行正常</span><span>VOZEB 创作空间 <em>·</em> v0.6.0</span></footer>
+    </main>
+    <section class="canvas-library-view" id="canvasLibraryView" hidden>
+      <header class="canvas-library-topbar">
+        <button class="back-home" id="backHome" aria-label="返回首页"><i data-lucide="arrow-left"></i></button>
+        <a class="brand compact-brand" href="#canvas"><span class="brand-mark"><i></i><i></i><i></i></span><span>VOZEB</span></a>
+        <div class="canvas-library-nav"><span class="library-nav-active"><i data-lucide="layout-dashboard"></i> 我的画布</span><button data-library-page="image"><i data-lucide="wand-sparkles"></i> 生图工作台</button><button data-library-page="video"><i data-lucide="clapperboard"></i> 视频创作台</button></div>
+        <div class="canvas-library-actions"><button class="icon-button" id="libraryThemeToggle" aria-label="切换主题">☾</button><button class="outline-button" id="libraryEnterStudio">进入工作台 <span class="arrow">↗</span></button></div>
+      </header>
+      <div class="canvas-library-content"><div class="library-page-kicker">画布库</div><div class="library-page-title-row"><div><h1>无限画布</h1><p>你的创作从这里开始</p></div><div class="library-page-buttons"><button class="outline-button" id="importCanvas"><i data-lucide="file-up"></i> 导入画布</button><button class="primary-small" id="newCanvasFromLibrary"><i data-lucide="plus"></i> 新建画布</button><input type="file" id="canvasFileInput" hidden /></div></div><div class="canvas-divider"></div><div class="canvas-empty-state"><div class="empty-illustration"><i data-lucide="layout-dashboard"></i></div><h2>还没有画布</h2><p>新建一个画布后，就可以自由保存节点、连接和画布外观。</p><button class="primary-small" id="newCanvasEmpty"><i data-lucide="plus"></i> 新建画布</button></div></div>
+    </section>
+    <section class="canvas-editor-view" id="canvasEditorView" hidden>
+      <header class="editor-topbar"><div class="editor-title-group"><button class="editor-menu" id="editorBack" aria-label="返回画布库"><i data-lucide="menu"></i></button><strong id="editorCanvasName">无限画布 1</strong><span class="editor-dot"></span><span class="editor-sync">本地草稿</span></div><div class="editor-top-actions"><button class="editor-icon-btn" title="帮助"><i data-lucide="book-open"></i></button><button class="editor-icon-btn" title="配置"><i data-lucide="sliders-horizontal"></i></button><button class="editor-icon-btn" id="editorThemeToggle" title="切换主题">☾</button><span class="editor-version">v0.6.0</span><button class="editor-icon-btn" title="快捷键"><i data-lucide="keyboard"></i></button><span class="editor-divider"></span><button class="agent-button"><i data-lucide="bot"></i> Agent</button></div></header>
+      <div class="editor-canvas-wrap" id="editorCanvasWrap"><div class="editor-grid" id="editorGrid"><svg class="connection-layer" id="connectionLayer" aria-hidden="true"></svg><div class="canvas-empty-hint"><div class="hint-icon"><i data-lucide="mouse-pointer-2"></i></div><strong>从这里开始创作</strong><span>使用下方工具添加内容，或拖动空白处浏览画布</span></div></div></div>
+      <div class="canvas-minimap"><button class="canvas-control" id="minimapToggle" title="小地图"><i data-lucide="compass"></i></button><button class="canvas-control" id="resetView" title="重置视图"><i data-lucide="focus"></i></button><div class="zoom-control"><button id="zoomOut" aria-label="缩小">−</button><input id="zoomSlider" type="range" min="50" max="180" value="100" /><button id="zoomIn" aria-label="放大">＋</button><span id="zoomValue">100%</span></div><button class="canvas-control help-control" id="canvasHelp" title="快捷键"><i data-lucide="circle-help"></i><span class="help-tooltip">快捷键</span></button></div>
+      <div class="minimap-preview" id="minimapPreview"><div class="mini-viewport" id="miniViewport"></div><div class="mini-label">小地图 · 拖动视口浏览</div></div>
+      <div class="editor-toolbar" role="toolbar" aria-label="画布工具栏"><button class="tool-button active" data-tool="hand" title="移动画布"><i data-lucide="hand"></i></button><span class="toolbar-separator"></span><button class="tool-button disabled-tool" data-tool="undo" title="撤销"><i data-lucide="undo-2"></i></button><button class="tool-button disabled-tool" data-tool="redo" title="重做"><i data-lucide="redo-2"></i></button><span class="toolbar-separator"></span><button class="tool-button" data-tool="text" title="添加文字"><i data-lucide="type"></i></button><button class="tool-button" data-tool="image" title="添加图片"><i data-lucide="image"></i></button><button class="tool-button" data-tool="video" title="添加视频"><i data-lucide="video"></i></button><button class="tool-button" data-tool="audio" title="添加音乐"><i data-lucide="music-2"></i></button><span class="toolbar-separator"></span><button class="tool-button" data-tool="connector" title="连接节点"><i data-lucide="git-branch"></i></button><button class="tool-button" data-tool="upload" title="上传素材"><i data-lucide="upload"></i></button><button class="tool-button" data-tool="folder" title="打开素材库"><i data-lucide="folder-open"></i></button><button class="tool-button" data-tool="palette" title="颜色与样式"><i data-lucide="palette"></i></button><span class="toolbar-separator"></span><button class="tool-button eraser-tool" data-tool="eraser" title="橡皮擦"><i data-lucide="eraser"></i></button></div>
+      <div class="tool-popover" id="toolPopover" hidden><strong id="toolPopoverTitle">添加文字</strong><span id="toolPopoverText">在画布中点击任意位置添加文字节点</span></div>
+      <div class="shortcut-modal-backdrop" id="shortcutModal" hidden><div class="shortcut-modal"><div class="shortcut-heading"><strong>快捷键</strong><button id="shortcutClose" aria-label="关闭快捷键"><i data-lucide="x"></i></button></div><div class="shortcut-list"><div><b>拖动画布</b><span>平移视图</span></div><div><b>滚轮</b><span>缩放画布</span></div><div><b>Ctrl / Cmd + 拖动</b><span>框选多个节点</span></div><div><b>Shift / Ctrl / Cmd + 点击</b><span>追加选择节点</span></div><div><b>Ctrl / Cmd + C / V</b><span>复制 / 粘贴节点</span></div><div><b>Delete / Backspace</b><span>删除选中项</span></div></div></div></div>
+      <div class="generation-panel" id="generationPanel" hidden><div class="generation-heading"><strong>生成配置</strong><button id="generationClose" aria-label="关闭生成配置"><i data-lucide="x"></i></button></div><div class="generation-tabs"><button class="active"><i data-lucide="image"></i> 生图</button><button><i data-lucide="message-square"></i> 文本</button><button><i data-lucide="video"></i> 视频</button><button><i data-lucide="music-2"></i> 音频</button></div><div class="generation-chips"><span>提示词 <b id="promptChipCount">0</b> 个</span><span>参考图 <b>0</b> 张</span><span>参考视频 <b>0</b> 个</span><span>参考音频 <b>0</b> 个</span><button id="assemblePrompt"><i data-lucide="sliders-horizontal"></i> 组装提示词</button></div><div class="generation-model"><button id="modelSelect"><span><i data-lucide="sparkles"></i> <b id="modelName">gpt-image-1</b></span><i data-lucide="chevron-down"></i></button><button id="settingsSelect"><i data-lucide="sliders-horizontal"></i><span id="settingsSummary">自动 · auto · 3 张</span></button></div><button class="generate-action" id="generateAction"><i data-lucide="play"></i> 开始生成</button><div class="generation-prompt"><div><strong>组装提示词</strong><span>@ 引用已连接素材，发送前按当前连接重新编号</span><button id="generationPromptClose" aria-label="关闭提示词"><i data-lucide="x"></i></button></div><textarea id="generationPrompt" placeholder="输入提示词，按 @ 引用连接的图片或文本"></textarea><div class="mention-menu" id="mentionMenu" hidden><button data-mention="文本"><i data-lucide="file-text"></i><span>文本</span><small id="mentionTextPreview">当前文本节点</small></button><button data-mention="图片"><i data-lucide="image"></i><span>图片</span><small>已连接图片</small></button></div></div></div>
+      <div class="model-menu" id="modelMenu" hidden><button data-model="gpt-image-2"><i data-lucide="sparkles"></i><span>gpt-image-2</span><small>默认渠道</small><i data-lucide="check"></i></button><button data-model="gemini-3.1-flash-image-preview"><i data-lucide="sparkles"></i><span>gemini-3.1-flash-image-preview</span><small>渠道 3</small></button><button data-model="gemini-3-pro-image-preview"><i data-lucide="sparkles"></i><span>gemini-3-pro-image-preview</span><small>渠道 3</small></button></div>
+      <div class="image-settings-popover" id="imageSettingsPopover" hidden><div class="settings-popover-scroll"><h3>图像设置</h3><label>质量<div class="quality-options"><button class="selected" data-quality="auto">自动</button><button data-quality="high">高</button><button data-quality="medium">中</button><button data-quality="low">低</button></div></label><label>尺寸<div class="size-inputs"><input placeholder="W" value="1024" /><span>↔</span><input placeholder="H" value="1024" /></div></label><label>宽高比<div class="aspect-grid"><button class="selected" data-aspect="1:1">1:1</button><button data-aspect="3:2">3:2</button><button data-aspect="2:3">2:3</button><button data-aspect="4:3">4:3</button><button data-aspect="3:4">3:4</button><button data-aspect="16:9">16:9</button><button data-aspect="9:16">9:16</button><button data-aspect="1:1(2k)">1:1(2k)</button><button data-aspect="16:9(2k)">16:9(2k)</button><button data-aspect="9:16(2k)">9:16(2k)</button><button data-aspect="16:9(4k)">16:9(4k)</button><button data-aspect="9:16(4k)">9:16(4k)</button></div></label><label>生图张数<div class="count-options"><button class="selected" data-count="1">1</button><button data-count="2">2</button><button data-count="3">3</button><button data-count="4">4</button></div></label></div><button class="settings-apply" id="settingsApply">应用设置</button></div>
+      <div class="node-actions" id="nodeActions" hidden><button data-action="info"><i data-lucide="circle-help"></i> 信息</button><button data-action="delete"><i data-lucide="trash-2"></i> 删除</button><button data-action="save"><i data-lucide="folder-plus"></i> 存素材</button><button data-action="download"><i data-lucide="download"></i> 下载</button><button data-action="edit"><i data-lucide="message-square"></i> 编辑</button><button data-action="copy"><i data-lucide="copy"></i> 复制提示词</button><button data-action="reverse"><i data-lucide="file-text"></i> 反推提示词</button><button data-action="more"><i data-lucide="ellipsis"></i> 更多</button></div>
+      <div class="info-modal-backdrop" id="infoModal" hidden><div class="info-modal"><div class="info-modal-header"><strong>节点信息</strong><div><button class="info-tab active" data-info-tab="details">信息</button><button class="info-tab" data-info-tab="json">JSON</button></div><button id="infoClose"><i data-lucide="x"></i></button></div><div class="info-details" id="infoDetails"><dl><dt>ID</dt><dd>vozeb-image-8f3d</dd><dt>类型</dt><dd>图片</dd><dt>尺寸</dt><dd>1024 × 1024</dd><dt>位置</dt><dd>820, 555</dd><dt>状态</dt><dd>success</dd><dt>提示词</dt><dd id="infoPrompt">夏日山谷与湖畔的电影感风景</dd></dl></div><pre id="infoJson" hidden></pre></div></div>
+    </section>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="modal-backdrop" id="modalBackdrop" hidden><div class="modal"><button class="modal-close" id="modalClose">×</button><span class="section-kicker">NEW CANVAS</span><h2>创建一个新画布</h2><p>选择你的画布尺寸，马上开始下一段创作。</p><div class="canvas-options"><button class="canvas-option selected"><span>▦</span><strong>横屏画布</strong><small>16 : 9 · 1920 × 1080</small></button><button class="canvas-option"><span>▧</span><strong>竖屏画布</strong><small>9 : 16 · 1080 × 1920</small></button><button class="canvas-option"><span>□</span><strong>方形画布</strong><small>1 : 1 · 1080 × 1080</small></button></div><button class="primary-cta modal-cta" id="createCanvas">创建画布 <span>→</span></button></div></div>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
