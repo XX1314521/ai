@@ -71,6 +71,22 @@ export function isSeedanceFastModel(model: string) {
     return isSeedanceVideoModel(value) && value.includes("fast");
 }
 
+export function isSeedanceV1Model(model: string) {
+    return /(?:seedance|doubao-seedance)-1-0(?:-|$)/i.test(modelOptionName(model));
+}
+
+export function isSeedanceV15Model(model: string) {
+    return /(?:seedance|doubao-seedance)-1-5(?:-|$)/i.test(modelOptionName(model));
+}
+
+export function isSeedanceV2Model(model: string) {
+    return /(?:seedance|doubao-seedance)-2-0(?:-|$)/i.test(modelOptionName(model));
+}
+
+export function seedanceRatioOptionsForModel(model: string) {
+    return seedanceRatioOptions.filter((item) => !(isSeedanceV1Model(model) && (item.value === "adaptive" || item.value === "21:9")));
+}
+
 export function isArkPlanBaseUrl(baseUrl: string) {
     return baseUrl.toLowerCase().includes("ark.cn-beijing.volces.com/api/plan/v3") || baseUrl.toLowerCase().includes("/api/plan/v3");
 }
@@ -88,15 +104,25 @@ export function normalizeResolutionToken(value: string) {
     return `${resolution}p`;
 }
 
-export function normalizeSeedanceDuration(value: string) {
-    if (String(value).trim() === "-1") return -1;
-    const seconds = Math.floor(Number(value) || 5);
-    return Math.max(4, Math.min(15, seconds));
+export function seedanceDurationOptionsForModel(model: string) {
+    if (isSeedanceV1Model(model)) return [4, 5, 6, 8, 10] as const;
+    if (isSeedanceV15Model(model)) return [4, 5, 6, 8, 10, 12] as const;
+    return seedanceDurationOptions;
 }
 
-export function normalizeSeedanceRatio(value: string) {
-    if (!value || value === "auto" || value === "adaptive") return "adaptive";
-    if (seedanceRatioOptions.some((item) => item.value === value)) return value;
+export function normalizeSeedanceDuration(value: string, model = "") {
+    if (String(value).trim() === "-1") return isSeedanceV2Model(model) ? -1 : isSeedanceV1Model(model) ? 10 : 12;
+    const seconds = Math.floor(Number(value) || 5);
+    const minimum = 4;
+    const maximum = isSeedanceV1Model(model) || isSeedanceV15Model(model) ? 12 : 15;
+    return Math.max(minimum, Math.min(maximum, seconds));
+}
+
+export function normalizeSeedanceRatio(value: string, model = "") {
+    if (!value || value === "auto" || value === "adaptive") return isSeedanceV1Model(model) ? "16:9" : "adaptive";
+    if (seedanceRatioOptions.some((item) => item.value === value)) {
+        return isSeedanceV1Model(model) && value === "21:9" ? "16:9" : value;
+    }
     const match = value.match(/^(\d+)x(\d+)$/);
     if (!match) return "adaptive";
     const width = Number(match[1]);
