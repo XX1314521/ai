@@ -277,10 +277,14 @@ function unwrapSeedanceTask(payload: ApiEnvelope<SeedanceTask>) {
     if (!payload || typeof payload !== "object") throw new Error("Seedance 接口没有返回任务");
     const root = payload as Record<string, unknown>;
     if (root.code !== undefined && root.code !== 0 && root.code !== "0") throw new Error(readApiErrorMessage(payload) || "Seedance 请求失败");
-    const candidates = [root, root.data, root.result, (root.data as Record<string, unknown> | undefined)?.data, (root.result as Record<string, unknown> | undefined)?.data];
-    const task = candidates.find((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
+    const candidates = [root.data, root.result, (root.data as Record<string, unknown> | undefined)?.data, (root.result as Record<string, unknown> | undefined)?.data, root];
+    const task = candidates.find((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && ("id" in item || "task_id" in item || "taskId" in item || "status" in item || "content" in item)));
     if (!task) throw new Error(readApiErrorMessage(payload) || "Seedance 接口没有返回任务");
-    const id = [task.id, task.task_id, task.taskId, root.id, root.task_id, root.taskId].find((value) => typeof value === "string" && value.trim());
+    const id = candidates.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const value = item as Record<string, unknown>;
+        return [value.id, value.task_id, value.taskId];
+    }).find((value) => typeof value === "string" && value.trim());
     return { ...(task as SeedanceTask), id: id as string | undefined };
 }
 
@@ -318,8 +322,8 @@ function readApiErrorMessage(value: unknown): string {
         }
     }
     if (typeof value !== "object") return "";
-    const payload = value as { msg?: unknown; message?: unknown; error?: { message?: unknown } };
-    return readApiErrorMessage(payload.msg) || readApiErrorMessage(payload.message) || readApiErrorMessage(payload.error?.message);
+    const payload = value as { code?: unknown; msg?: unknown; message?: unknown; detail?: unknown; error?: unknown };
+    return readApiErrorMessage(payload.msg) || readApiErrorMessage(payload.message) || readApiErrorMessage(payload.detail) || readApiErrorMessage(payload.error) || (payload.code !== undefined ? `服务端返回错误码 ${String(payload.code)}` : "");
 }
 
 function readAxiosError(error: unknown, fallback: string) {
@@ -333,7 +337,7 @@ function readAxiosError(error: unknown, fallback: string) {
 }
 
 function statusMessage(status: number | undefined, fallback: string) {
-    if (status === 401 || status === 403) return "鉴权失败，请检查 API Key、套餐权限或模型权限";
+    if (status === 401 || status === 403) return `${fallback}：鉴权失败（HTTP ${status}），请检查当前 Seedance 模型绑定渠道的 API Key、套餐权限或模型权限`;
     if (status === 429) return "请求被限流或额度不足，请稍后重试";
     return status ? `${fallback}（${status}）` : fallback;
 }

@@ -312,12 +312,14 @@ export function resolveModelChannel(config: AiConfig, value: string) {
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {
     const channel = resolveModelChannel(config, value);
+    const resolvedModel = modelOptionName(value || config.model);
+    const seedanceModel = resolvedModel.toLowerCase().includes("seedance") || resolvedModel.toLowerCase().includes("doubao-seedance");
     return {
         ...config,
-        model: modelOptionName(value || config.model),
+        model: resolvedModel,
         baseUrl: AIKART_BASE_URL,
         apiKey: channel.apiKey,
-        apiFormat: channel.apiFormat,
+        apiFormat: seedanceModel ? "bytedance" : channel.apiFormat,
     };
 }
 
