@@ -8,18 +8,19 @@ import { buildApiUrl, modelOptionName, resolveModelRequestConfig, type AiConfig 
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-type VideoResponse = { id: string; status?: string; error?: { message?: string }; url?: string; result_url?: string; video_url?: string; content?: { video_url?: string; url?: string } | null };
+type VideoResponse = { id: string; status?: string; error?: { message?: string }; url?: string; result_url?: string; video_url?: string; metadata?: { url?: string; [key: string]: unknown } | null; content?: { video_url?: string; url?: string } | null };
 type ApiVideoResponse = VideoResponse | { code?: number | string; data?: VideoResponse | null; msg?: string; message?: string; error?: { message?: string } };
 type SeedanceTask = {
     id?: string;
     task_id?: string;
     taskId?: string;
-    status?: "queued" | "running" | "succeeded" | "completed" | "failed" | "cancelled" | "expired";
+    status?: "queued" | "running" | "in_progress" | "succeeded" | "completed" | "failed" | "cancelled" | "expired";
     error?: { code?: string; message?: string } | null;
     content?: unknown;
     url?: string;
     result_url?: string;
     video_url?: string;
+    metadata?: { url?: string; [key: string]: unknown } | null;
 };
 type ApiEnvelope<T> = T | { code?: number | string; data?: T | null; result?: T | null; msg?: string; message?: string; error?: { message?: string } };
 type RequestOptions = { signal?: AbortSignal };
@@ -128,14 +129,24 @@ async function createSeedanceTask(config: AiConfig, model: string, prompt: strin
     assertSeedanceAudioReferences(audioReferences);
     const content = await buildSeedanceContent(config, prompt, references, videoReferences, audioReferences);
     if (!content.length) throw new Error("请输入视频提示词，或连接参考图片/视频/音频");
+    const imageUrls = content
+        .filter((item) => item.type === "image_url")
+        .map((item) => (item.image_url as { url?: string } | undefined)?.url)
+        .filter((url): url is string => Boolean(url));
+    const relayContent = content.filter((item) => item.type !== "text" && item.type !== "image_url");
     const payload = {
         model: modelOptionName(model),
-        content,
-        ratio: normalizeSeedanceRatio(config.size),
-        resolution: normalizeSeedanceResolution(config.vquality, modelOptionName(model)),
-        duration: normalizeSeedanceDuration(config.videoSeconds),
-        generate_audio: boolConfig(config.videoGenerateAudio, true),
-        watermark: boolConfig(config.videoWatermark, false),
+        prompt: buildSeedancePromptText(prompt, references, videoReferences, audioReferences),
+        images: imageUrls,
+        seconds: String(normalizeSeedanceDuration(config.videoSeconds)),
+        metadata: {
+            content: relayContent,
+            ratio: normalizeSeedanceRatio(config.size),
+            resolution: normalizeSeedanceResolution(config.vquality, modelOptionName(model)),
+            duration: normalizeSeedanceDuration(config.videoSeconds),
+            generate_audio: boolConfig(config.videoGenerateAudio, true),
+            watermark: boolConfig(config.videoWatermark, false),
+        },
     };
 
     try {
@@ -152,6 +163,7 @@ async function pollSeedanceTask(config: AiConfig, task: VideoGenerationTask, opt
         const state = await pollSeedanceTaskRequest(config, task.id, options);
         const url = videoResultUrl(state);
         if (url) return { status: "completed", result: await videoResultFromUrl(url, options) };
+        if (state.status === "in_progress") return { status: "pending" };
         if (state.status === "succeeded" || state.status === "completed") return { status: "failed", error: "Seedance 任务成功但没有返回视频 URL" };
         if (state.status === "failed" || state.status === "cancelled" || state.status === "expired") return { status: "failed", error: readApiErrorMessage(state.error?.message) || `Seedance 视频生成${state.status === "expired" ? "超时" : "失败"}` };
         return { status: "pending" };
@@ -188,9 +200,10 @@ function seedanceApiUrl(config: AiConfig, taskId?: string) {
 
 function seedanceApiUrls(config: AiConfig, taskId?: string) {
     if (config.apiFormat === "bytedance") {
-        const base = config.baseUrl.trim().replace(/\/+$/, "");
-        const suffix = `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
-        return [`${base}/v3${suffix}`, `${base}/api/v3${suffix}`];
+        // AikArt uses the New API relay. The relay forwards this request to
+        // the upstream Doubao Contents Generations endpoint server-side.
+        const suffix = `/video/generations${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
+        return [buildApiUrl(config.baseUrl, suffix)];
     }
     return [buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`)];
 }
@@ -205,7 +218,7 @@ async function createSeedanceTaskRequest(config: AiConfig, payload: Record<strin
         }
         return unwrapSeedanceTask(response.data as ApiEnvelope<SeedanceTask>);
     }
-    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance JSON，请确认中转服务已开放 /v3/contents/generations/tasks 或 /api/v3/contents/generations/tasks");
+    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance JSON，请确认使用 /v1/video/generations 接口");
     throw new Error("Seedance 接口没有返回任务");
 }
 
@@ -219,7 +232,7 @@ async function pollSeedanceTaskRequest(config: AiConfig, taskId: string, options
         }
         return unwrapSeedanceTask(response.data as ApiEnvelope<SeedanceTask>);
     }
-    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance 任务 JSON，请检查中转接口路径");
+    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance 任务 JSON，请检查 /v1/video/generations 接口");
     throw new Error("Seedance 接口没有返回任务");
 }
 
@@ -337,7 +350,7 @@ function unwrapEnvelope<T>(payload: ApiEnvelope<T>, emptyMessage: string): T {
 }
 
 function videoResultUrl(payload: VideoResponse | SeedanceTask) {
-    const values: unknown[] = [payload.video_url, payload.result_url, payload.url];
+    const values: unknown[] = [payload.video_url, payload.result_url, payload.url, payload.metadata?.url];
     if (payload.content && typeof payload.content === "object") {
         const content = payload.content as Record<string, unknown> | Array<Record<string, unknown>>;
         const items = Array.isArray(content) ? content : [content];
