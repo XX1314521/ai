@@ -38,12 +38,19 @@ type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
 
+function migrateProjectTitle(title: string) {
+    return title.replace(/^无限画布(?=\s|$)/, "AikArt").replace(/^爱坤Ai画布(?=\s|$)/, "AikArt");
+}
+
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
         const value = await localForageStorage.getItem(name);
         if (!value) return null;
         const parsed = JSON.parse(value) as StorageValue<CanvasStore>;
-        queuedPersistState = parsed.state as PersistedCanvasState;
+        const state = parsed.state as PersistedCanvasState;
+        const projects = state.projects.map((project) => ({ ...project, title: migrateProjectTitle(project.title) }));
+        queuedPersistState = { projects };
+        parsed.state = { ...parsed.state, projects };
         return parsed;
     },
     setItem: (name, value) => {

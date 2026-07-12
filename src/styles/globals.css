@@ -248,11 +248,11 @@
 
     .home-category:hover { color: #182339; background: rgba(255, 255, 255, 0.7); }
     .home-category.active {
-        color: #1b2636;
-        border-color: rgba(246, 193, 43, 0.18);
-        background: radial-gradient(circle at 16% 20%, rgba(255, 255, 255, 0.75) 0 2px, transparent 3px 100%), #f8ca48;
-        background-size: 18px 18px, auto;
-        box-shadow: 0 11px 22px rgba(220, 169, 37, 0.18);
+        color: #17233b;
+        border-color: rgba(255, 255, 255, 0.9);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(218, 242, 255, 0.66) 52%, rgba(255, 245, 214, 0.7));
+        box-shadow: 0 12px 26px rgba(73, 111, 137, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -8px 16px rgba(154, 203, 225, 0.12);
+        backdrop-filter: blur(18px) saturate(140%);
     }
 
     .home-steps {
@@ -390,8 +390,19 @@
     .home-primary-action span, .home-primary-action svg { position: relative; z-index: 1; }
     .home-category, .studio-card { -webkit-tap-highlight-color: transparent; }
     .home-category.active { box-shadow: 0 12px 24px rgba(220, 169, 37, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.62); }
+    .home-category.active::after {
+        position: absolute;
+        inset: 1px;
+        border-radius: 15px;
+        content: "";
+        background: linear-gradient(115deg, transparent 24%, rgba(255, 255, 255, 0.5) 45%, transparent 64%);
+        background-size: 220% 100%;
+        animation: glass-sheen 2.8s ease-in-out infinite;
+        pointer-events: none;
+    }
     .studio-card-selected { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(67, 105, 125, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.82); }
     .studio-card-selected .studio-card-icon { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76); }
+    @keyframes glass-sheen { 0%, 35% { background-position: 140% 0; } 65%, 100% { background-position: -40% 0; } }
     .ant-btn, .ant-input, .ant-input-affix-wrapper, .ant-select-selector, .ant-picker, .ant-dropdown, .ant-modal-content, .ant-drawer-content, .ant-card, .ant-tabs-tab { border-radius: 14px !important; }
     .ant-btn { transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease !important; }
     .ant-btn:hover:not(:disabled) { transform: translateY(-1px); }
@@ -414,7 +425,7 @@
     .dark .home-agent-pill, .dark .generating-pill { color: #bcecff; }
     .dark .home-category { color: #9da9bb; }
     .dark .home-category:hover { color: #ffffff; background: rgba(255, 255, 255, 0.1); }
-    .dark .home-category.active { color: #162033; background-color: #f3c744; }
+    .dark .home-category.active { color: #17233b; background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(193, 224, 245, 0.76)); }
     .dark .home-step-number { border-color: rgba(255, 255, 255, 0.13); color: #aeb9cb; background: rgba(31, 38, 52, 0.8); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24); }
     .dark .home-step:not(:last-child)::after { background: rgba(255, 255, 255, 0.17); }
     .dark .studio-window-bar { border-color: rgba(255, 255, 255, 0.1); color: #b4bfce; }
@@ -423,6 +434,17 @@
     .dark .studio-card-icon { color: #ebf4ff; }
     .dark .studio-summary b { color: #172138; background: #eff4ff; }
     .dark .ant-input, .dark .ant-input-affix-wrapper, .dark .ant-select-selector, .dark .ant-picker { border-color: rgba(255, 255, 255, 0.14) !important; background: rgba(255, 255, 255, 0.07) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+
+    .prompt-center-page {
+        background:
+            radial-gradient(circle at 12% 18%, rgba(151, 214, 255, 0.3), transparent 34%),
+            radial-gradient(circle at 92% 28%, rgba(171, 247, 235, 0.3), transparent 32%),
+            linear-gradient(135deg, #f5fbff 0%, #ffffff 48%, #f5fffb 100%);
+        background-attachment: fixed;
+        background-image: linear-gradient(rgba(127, 155, 181, 0.075) 1px, transparent 1px), linear-gradient(90deg, rgba(127, 155, 181, 0.075) 1px, transparent 1px), radial-gradient(circle at 12% 18%, rgba(151, 214, 255, 0.3), transparent 34%), radial-gradient(circle at 92% 28%, rgba(171, 247, 235, 0.3), transparent 32%), linear-gradient(135deg, #f5fbff 0%, #ffffff 48%, #f5fffb 100%);
+        background-size: 24px 24px, 24px 24px, auto, auto, auto;
+    }
+    .prompt-center-page .ant-input { border-color: rgba(155, 197, 216, 0.38) !important; background: rgba(255, 255, 255, 0.72) !important; backdrop-filter: blur(18px); }
 
     @media (max-width: 1180px) {
         .home-content { grid-template-columns: 1fr; max-width: 920px; padding-top: 35px; }

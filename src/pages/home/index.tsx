@@ -67,7 +67,7 @@ export default function IndexPage() {
                             <Sparkles className="size-4" />
                             <span>Agent 创作入口</span>
                         </div>
-                        <h1>爱坤Ai画布</h1>
+                        <h1>AikArt</h1>
                         <p className="home-lead">把灵感放进画布，让图片、文字与视频在同一个创作空间里持续生长。</p>
 
                         <div className="home-category-list" aria-label="创作类型">
@@ -109,7 +109,7 @@ export default function IndexPage() {
                                 <span className="dot-yellow" />
                                 <span className="dot-green" />
                             </div>
-                            <span className="studio-window-title">爱坤 Ai Creative Studio</span>
+                            <span className="studio-window-title">AikArt Creative Studio</span>
                             <span className="studio-status">创作任务 / 生成中</span>
                         </div>
                         <div className="studio-window-body">
