@@ -1,125 +1,160 @@
-import { ArrowRight } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { App, Button, Image, Tag } from "antd";
+import {
+    ArrowRight,
+    Check,
+    Clapperboard,
+    Image as ImageIcon,
+    Layers3,
+    PenLine,
+    Sparkles,
+    WandSparkles,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { fetchPrompts, type Prompt } from "@/services/api/prompts";
-import { navigationTools } from "@/constant/navigation-tools";
-import { cn } from "@/lib/utils";
+const steps = [
+    { number: "01", label: "选场景", icon: Layers3 },
+    { number: "02", label: "加参考", icon: ImageIcon },
+    { number: "03", label: "写描述", icon: PenLine },
+    { number: "04", label: "生成", icon: WandSparkles },
+    { number: "05", label: "微调", icon: Sparkles },
+    { number: "06", label: "保存", icon: Check },
+];
 
-function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children: ReactNode }) {
+const studioCards = [
+    {
+        eyebrow: "电商",
+        title: "上新视觉",
+        detail: "商品展示 / 海报 / 详情",
+        icon: Layers3,
+        className: "studio-card-wide studio-card-blue",
+    },
+    {
+        eyebrow: "漫剧",
+        title: "角色分镜",
+        detail: "封面 / 连载 / 对话",
+        icon: Clapperboard,
+        className: "studio-card-lilac",
+    },
+    {
+        eyebrow: "美颜",
+        title: "人像精修",
+        detail: "肤色 / 光影 / 质感",
+        icon: ImageIcon,
+        className: "studio-card-mint",
+    },
+];
+
+export default function IndexPage() {
+    const navigate = useNavigate();
+
     return (
-        <span className="relative inline-block px-1">
-            {action === "highlight" ? (
-                <span className="absolute inset-x-0 bottom-0 top-1 rounded-sm opacity-45" style={{ backgroundColor: color }} />
-            ) : (
-                <span className="absolute inset-x-0 bottom-0 h-1 rounded-full opacity-80" style={{ backgroundColor: color }} />
-            )}
-            <span className="relative font-medium text-stone-800 dark:text-stone-200">{children}</span>
-        </span>
+        <main className="home-page h-full overflow-y-auto text-[#10172c]">
+            <section className="home-shell">
+                <div className="home-hero-grid" />
+                <div className="home-orbit home-orbit-one" />
+                <div className="home-orbit home-orbit-two" />
+
+                <div className="home-content">
+                    <div className="home-copy">
+                        <div className="home-agent-pill">
+                            <Sparkles className="size-4" />
+                            <span>Agent 创作入口</span>
+                        </div>
+                        <h1>爱坤Ai画布</h1>
+                        <p className="home-lead">把灵感放进画布，让图片、文字与视频在同一个创作空间里持续生长。</p>
+
+                        <div className="home-category-list" aria-label="创作类型">
+                            <button type="button" className="home-category active" onClick={() => navigate("/image")}>
+                                <Layers3 className="size-5" />
+                                <span>电商</span>
+                            </button>
+                            <button type="button" className="home-category" onClick={() => navigate("/video")}>
+                                <Clapperboard className="size-5" />
+                                <span>漫剧</span>
+                            </button>
+                            <button type="button" className="home-category" onClick={() => navigate("/image")}>
+                                <ImageIcon className="size-5" />
+                                <span>美颜</span>
+                            </button>
+                        </div>
+
+                        <div className="home-steps">
+                            {steps.map(({ number, label, icon: Icon }, index) => (
+                                <div className="home-step" key={number}>
+                                    <div className={`home-step-number ${index < 2 ? "is-active" : ""}`}>
+                                        <span>{number}</span>
+                                    </div>
+                                    <span>{label}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button type="button" className="home-primary-action" onClick={() => navigate("/canvas") }>
+                            <span>开始创作</span>
+                            <ArrowRight className="size-5" />
+                        </button>
+                    </div>
+
+                    <div className="studio-window" aria-label="爱坤Ai创作工作台预览">
+                        <div className="studio-window-bar">
+                            <div className="window-dots" aria-hidden="true">
+                                <span className="dot-red" />
+                                <span className="dot-yellow" />
+                                <span className="dot-green" />
+                            </div>
+                            <span className="studio-window-title">爱坤 Ai Creative Studio</span>
+                            <span className="studio-status">创作任务 / 生成中</span>
+                        </div>
+                        <div className="studio-window-body">
+                            <div className="studio-heading-row">
+                                <div>
+                                    <span className="studio-label">AI 创作台</span>
+                                    <h2>电商、漫剧与美颜</h2>
+                                </div>
+                                <span className="generating-pill">
+                                    <WandSparkles className="size-4" /> 正在生成
+                                </span>
+                            </div>
+
+                            <div className="studio-card-grid">
+                                {studioCards.map(({ eyebrow, title, detail, icon: Icon, className }) => (
+                                    <button type="button" className={`studio-card ${className}`} key={title} onClick={() => navigate(title === "角色分镜" ? "/video" : "/image")}>
+                                        <span className="studio-card-icon"><Icon className="size-7" /></span>
+                                        <span className="studio-card-copy">
+                                            <span className="studio-card-eyebrow">{eyebrow}</span>
+                                            <strong>{title}</strong>
+                                            <small>{detail}</small>
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="studio-summary">
+                                <div>
+                                    <span>当前描述</span>
+                                    <strong>夏季上新、漫画分镜、自然人像光</strong>
+                                </div>
+                                <b>12 个结果</b>
+                            </div>
+
+                            <div className="studio-progress-grid">
+                                <Progress label="参考图识别" value="完成" color="cyan" percent="92%" />
+                                <Progress label="风格生成" value="生成中" color="pink" percent="68%" />
+                                <Progress label="细节优化" value="待处理" color="yellow" percent="35%" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     );
 }
 
-export default function IndexPage() {
-    const { message } = App.useApp();
-    const navigate = useNavigate();
-    const [primaryTool] = navigationTools;
-    const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
-    const [previewIndex, setPreviewIndex] = useState(0);
-    const [previewOpen, setPreviewOpen] = useState(false);
-
-    useEffect(() => {
-        void fetchPrompts({ pageSize: 12 })
-            .then((data) => setPromptShowcase(data.items))
-            .catch((error) => message.error(error instanceof Error ? error.message : "获取提示词失败"));
-    }, [message]);
-
+function Progress({ label, value, color, percent }: { label: string; value: string; color: "cyan" | "pink" | "yellow"; percent: string }) {
     return (
-        <main className="relative h-full overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-stone-950 dark:bg-[radial-gradient(rgba(245,245,244,.18)_1px,transparent_1px)] dark:text-stone-100">
-            <section className="relative mx-auto min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden px-6">
-                <div className="pointer-events-none absolute left-[15%] top-24 size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
-                <div className="pointer-events-none absolute right-[23%] top-[48%] size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
-
-                <div className="relative flex min-h-[620px] flex-col items-center justify-center pt-10 text-center">
-                    <h1 className="ai-title-aurora max-w-5xl text-balance text-5xl font-semibold tracking-normal sm:text-7xl lg:text-8xl">无限画布</h1>
-                    <p className="mt-8 max-w-3xl text-balance text-lg leading-8 text-stone-500 dark:text-stone-400">
-                        在
-                        <Highlighter action="underline" color="#FF9800">
-                            无限画布
-                        </Highlighter>
-                        中生成、连接和重组
-                        <Highlighter action="highlight" color="#87CEFA">
-                            图片、文字与图形
-                        </Highlighter>
-                        ，让创作从单次生成变成连续推演。
-                    </p>
-                    <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                        <Button type="primary" size="large" onClick={() => navigate(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-4" />} iconPlacement="end">
-                            开始使用
-                        </Button>
-                        <Button size="large" onClick={() => navigate("/canvas")}>
-                            打开画布
-                        </Button>
-                    </div>
-                </div>
-
-                <section className="relative mx-auto mb-20 max-w-6xl border-t border-stone-200 pt-12 dark:border-stone-800">
-                    <div className="mb-8 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-start">
-                        <div />
-                        <div className="max-w-2xl text-center">
-                            <h2 className="text-3xl font-semibold text-stone-950 dark:text-stone-100">沉淀每一次好结果</h2>
-                            <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">收藏稳定出图的提示词、参考风格和结果图片，让下一次创作从已有经验开始。</p>
-                        </div>
-                        <Button type="link" onClick={() => navigate("/prompts")} className="justify-self-center md:justify-self-end" icon={<ArrowRight className="size-4" />} iconPlacement="end">
-                            查看提示词库
-                        </Button>
-                    </div>
-                    <div className="grid auto-rows-[210px] gap-4 md:grid-cols-4">
-                        {promptShowcase.map((item, index) => (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => {
-                                    setPreviewIndex(index);
-                                    setPreviewOpen(true);
-                                }}
-                                className={cn(
-                                    "group relative cursor-pointer overflow-hidden border border-stone-200 bg-stone-100 text-left dark:border-stone-800 dark:bg-stone-900",
-                                    index === 0 && "md:col-span-2 md:row-span-2",
-                                    index === 3 && "md:col-span-2",
-                                )}
-                            >
-                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent p-4 text-white">
-                                    <div className="mb-2 flex flex-wrap gap-1.5">
-                                        {item.tags.slice(0, 2).map((tag) => (
-                                            <Tag key={tag} variant="filled" className="m-0 bg-white/15 text-[11px] text-white backdrop-blur">
-                                                {tag}
-                                            </Tag>
-                                        ))}
-                                    </div>
-                                    <h3 className="text-sm font-medium">{item.title}</h3>
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{item.prompt}</p>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            </section>
-            <Image.PreviewGroup
-                preview={{
-                    open: previewOpen,
-                    current: previewIndex,
-                    onOpenChange: setPreviewOpen,
-                    onChange: setPreviewIndex,
-                }}
-            >
-                <div className="hidden">
-                    {promptShowcase.map((item) => (
-                        <Image key={item.id} src={item.coverUrl} alt={item.title} />
-                    ))}
-                </div>
-            </Image.PreviewGroup>
-        </main>
+        <div className="studio-progress">
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <i className={`progress-track progress-${color}`}><em style={{ width: percent }} /></i>
+        </div>
     );
 }
