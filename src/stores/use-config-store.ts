@@ -330,6 +330,8 @@ function normalizeChannels(config: AiConfig) {
             ...channel,
             id: channel.id || (index === 0 ? "default" : `channel-${index + 1}`),
             name: channel.name || (index === 0 ? "默认渠道" : `渠道 ${index + 1}`),
+            apiKey: channel.apiKey || (index === 0 ? config.apiKey : ""),
+            apiFormat: channel.apiFormat || (index === 0 ? config.apiFormat : undefined),
             models: uniqueRawModels(channel.models || []),
         }),
     );

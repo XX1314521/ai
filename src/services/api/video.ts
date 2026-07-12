@@ -330,7 +330,9 @@ function readAxiosError(error: unknown, fallback: string) {
     if (axios.isCancel(error)) return "请求已取消";
     if (axios.isAxiosError<{ error?: { message?: string }; msg?: string; message?: string; code?: number | string }>(error)) {
         const responseData = error.response?.data;
-        return readApiErrorMessage(responseData) || statusMessage(error.response?.status, fallback);
+        const requestId = error.response?.headers?.["x-request-id"] || error.response?.headers?.["X-Request-Id"];
+        const detail = readApiErrorMessage(responseData) || statusMessage(error.response?.status, fallback);
+        return requestId ? `${detail}（Request ID: ${requestId}）` : detail;
     }
     if (error instanceof DOMException && error.name === "AbortError") return "请求已取消";
     return error instanceof Error ? readApiErrorMessage(error.message) || error.message : fallback;
