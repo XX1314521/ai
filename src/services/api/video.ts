@@ -184,8 +184,7 @@ function assertSeedanceAudioReferences(audioReferences: ReferenceAudio[]) {
 
 function seedanceApiUrl(config: AiConfig, taskId?: string) {
     if (config.apiFormat === "bytedance") {
-        const base = "https://ark.cn-beijing.volces.com/api";
-        return `${base}/v3/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
+        return buildApiUrl(config.baseUrl, `/v3/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
     }
     return buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
 }
