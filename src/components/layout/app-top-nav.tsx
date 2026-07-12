@@ -34,10 +34,10 @@ export function AppTopNav() {
     return (
         <>
             {!hideHeader ? (
-                <header className={cn("sticky top-0 z-20 shrink-0 bg-background/90 backdrop-blur-xl", pathname === "/" ? "home-top-nav h-[92px] border-0 bg-transparent" : "h-14 border-b border-stone-200 dark:border-stone-800")}>
-                    <div className={cn("mx-auto flex h-full items-stretch justify-between gap-5", pathname === "/" ? "home-nav-inner max-w-[1920px] px-7 sm:px-14" : "max-w-7xl px-6")}>
+                <header className="app-top-nav sticky top-0 z-20 h-[92px] shrink-0 border-0 bg-transparent">
+                    <div className="app-nav-inner mx-auto flex h-full max-w-[1920px] items-stretch justify-between gap-5 px-7 sm:px-14">
                         <div className="flex min-w-0 items-center">
-                            <Link to="/" className={cn("flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight transition", pathname === "/" ? "home-brand text-[#11172c]" : "text-stone-950 hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300")}>
+                            <Link to="/" className="app-brand flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-[#11172c] transition hover:opacity-70">
                                 <span
                                     className="size-5 shrink-0 bg-current"
                                     style={{
@@ -58,7 +58,7 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            <nav className={cn("hide-scrollbar hidden min-w-0 items-center overflow-x-auto md:flex", pathname === "/" ? "home-main-nav ml-20 h-16 gap-1 rounded-full border border-white/80 bg-white/75 px-2 shadow-[0_10px_30px_rgba(56,75,105,.08)]" : "ml-8 h-14 gap-7")}>
+                            <nav className="app-main-nav hide-scrollbar ml-20 hidden h-16 min-w-0 items-center gap-1 overflow-x-auto rounded-full border border-white/80 bg-white/75 px-2 shadow-[0_10px_30px_rgba(56,75,105,.08)] md:flex">
                                 {navigationTools.map((tool) => {
                                     const Icon = tool.icon;
                                     const active = tool.slug === activeToolSlug;
@@ -67,10 +67,10 @@ export function AppTopNav() {
                                             key={tool.slug}
                                             to={`/${tool.slug}`}
                                             className={cn(
-                                                cn("relative flex shrink-0 items-center gap-2 text-sm leading-6 transition", pathname === "/" ? "home-nav-link h-12 rounded-full px-5" : "h-14 after:absolute after:inset-x-0 after:bottom-0 after:h-px"),
+                                                "app-nav-link relative flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-sm leading-6 transition",
                                                 active
-                                                    ? pathname === "/" ? "home-nav-link-active font-semibold text-stone-950" : "font-medium text-stone-950 after:bg-stone-950 dark:text-stone-100 dark:after:bg-stone-100"
-                                                    : pathname === "/" ? "text-stone-500 hover:bg-stone-50 hover:text-stone-950" : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
+                                                    ? "app-nav-link-active font-semibold text-stone-950"
+                                                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-950",
                                             )}
                                         >
                                             <Icon className="size-4" />
@@ -81,13 +81,13 @@ export function AppTopNav() {
                             </nav>
                         </div>
 
-                        <div className={cn("my-auto flex min-w-0 items-center justify-end gap-2 justify-self-end whitespace-nowrap", pathname === "/" ? "home-nav-actions h-12 rounded-xl border border-white/90 bg-white/70 px-2 shadow-[0_8px_24px_rgba(56,75,105,.06)]" : "h-9")}>
+                        <div className="app-nav-actions my-auto flex h-12 min-w-0 items-center justify-end gap-2 justify-self-end whitespace-nowrap rounded-xl border border-white/90 bg-white/70 px-2 shadow-[0_8px_24px_rgba(56,75,105,.06)]">
                             <CodexStatusButton />
                             <Tooltip title={panelOpen ? "收起 Agent" : "打开 Agent"}>
                                 <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" icon={<Bot className="size-4" />} onClick={togglePanel} aria-label="打开 Agent" />
                             </Tooltip>
                             <UserStatusActions />
-                            {pathname === "/" ? <Button type="primary" className="home-workbench-button !h-10 !rounded-lg !px-5" onClick={() => window.location.assign("/canvas")}>进入工作台</Button> : null}
+                            <Button type="primary" className="app-workbench-button !h-10 !rounded-lg !px-5" onClick={() => window.location.assign("/canvas")}>进入工作台</Button>
                         </div>
                     </div>
                 </header>
