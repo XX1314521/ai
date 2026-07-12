@@ -327,7 +327,7 @@ function unwrapVideoResponse(payload: ApiVideoResponse) {
 function unwrapSeedanceTask(payload: ApiEnvelope<SeedanceTask>) {
     if (!payload || typeof payload !== "object") throw new Error("Seedance 接口没有返回任务");
     const root = payload as Record<string, unknown>;
-    if (root.code !== undefined && root.code !== 0 && root.code !== "0") throw new Error(readApiErrorMessage(payload) || "Seedance 请求失败");
+    if (root.code !== undefined && !isSuccessfulCode(root.code)) throw new Error(readApiErrorMessage(payload) || "Seedance 请求失败");
     const candidates = [root.data, root.result, (root.data as Record<string, unknown> | undefined)?.data, (root.result as Record<string, unknown> | undefined)?.data, root];
     const task = candidates.find((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && ("id" in item || "task_id" in item || "taskId" in item || "status" in item || "content" in item)));
     if (!task) throw new Error(readApiErrorMessage(payload) || "Seedance 接口没有返回任务");
@@ -342,11 +342,15 @@ function unwrapSeedanceTask(payload: ApiEnvelope<SeedanceTask>) {
 function unwrapEnvelope<T>(payload: ApiEnvelope<T>, emptyMessage: string): T {
     if (!payload) throw new Error(emptyMessage);
     if (typeof payload === "object" && "code" in payload && payload.code !== undefined) {
-        if (payload.code !== 0 && payload.code !== "0") throw new Error(readApiErrorMessage(payload) || "请求失败");
+        if (!isSuccessfulCode(payload.code)) throw new Error(readApiErrorMessage(payload) || "请求失败");
         if (!payload.data) throw new Error(emptyMessage);
         return payload.data;
     }
     return payload as T;
+}
+
+function isSuccessfulCode(value: unknown) {
+    return value === 0 || value === "0" || (typeof value === "string" && ["ok", "success", "succeeded"].includes(value.trim().toLowerCase()));
 }
 
 function videoResultUrl(payload: VideoResponse | SeedanceTask) {
