@@ -139,7 +139,7 @@ async function createSeedanceTask(config: AiConfig, model: string, prompt: strin
     };
 
     try {
-        const created = unwrapSeedanceTask((await axios.post<ApiEnvelope<SeedanceTask>>(seedanceApiUrl(config), payload, { headers: aiHeaders(config, "application/json"), signal: options?.signal })).data);
+        const created = await createSeedanceTaskRequest(config, payload, options);
         if (!created.id) throw new Error("Seedance 接口没有返回任务 ID");
         return { id: created.id, provider: "seedance", model };
     } catch (error) {
@@ -149,7 +149,7 @@ async function createSeedanceTask(config: AiConfig, model: string, prompt: strin
 
 async function pollSeedanceTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
     try {
-        const state = unwrapSeedanceTask((await axios.get<ApiEnvelope<SeedanceTask>>(seedanceApiUrl(config, task.id), { headers: aiHeaders(config), signal: options?.signal })).data);
+        const state = await pollSeedanceTaskRequest(config, task.id, options);
         const url = videoResultUrl(state);
         if (url) return { status: "completed", result: await videoResultFromUrl(url, options) };
         if (state.status === "succeeded" || state.status === "completed") return { status: "failed", error: "Seedance 任务成功但没有返回视频 URL" };
@@ -183,10 +183,49 @@ function assertSeedanceAudioReferences(audioReferences: ReferenceAudio[]) {
 }
 
 function seedanceApiUrl(config: AiConfig, taskId?: string) {
+    return seedanceApiUrls(config, taskId)[0];
+}
+
+function seedanceApiUrls(config: AiConfig, taskId?: string) {
     if (config.apiFormat === "bytedance") {
-        return buildApiUrl(config.baseUrl, `/v3/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
+        const base = config.baseUrl.trim().replace(/\/+$/, "");
+        const suffix = `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
+        return [`${base}/v3${suffix}`, `${base}/api/v3${suffix}`];
     }
-    return buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
+    return [buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`)];
+}
+
+async function createSeedanceTaskRequest(config: AiConfig, payload: Record<string, unknown>, options?: RequestOptions) {
+    let htmlResponse = false;
+    for (const url of seedanceApiUrls(config)) {
+        const response = await axios.post<ApiEnvelope<SeedanceTask> | string>(url, payload, { headers: aiHeaders(config, "application/json"), signal: options?.signal });
+        if (isHtmlResponse(response.headers, response.data)) {
+            htmlResponse = true;
+            continue;
+        }
+        return unwrapSeedanceTask(response.data as ApiEnvelope<SeedanceTask>);
+    }
+    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance JSON，请确认中转服务已开放 /v3/contents/generations/tasks 或 /api/v3/contents/generations/tasks");
+    throw new Error("Seedance 接口没有返回任务");
+}
+
+async function pollSeedanceTaskRequest(config: AiConfig, taskId: string, options?: RequestOptions) {
+    let htmlResponse = false;
+    for (const url of seedanceApiUrls(config, taskId)) {
+        const response = await axios.get<ApiEnvelope<SeedanceTask> | string>(url, { headers: aiHeaders(config), signal: options?.signal });
+        if (isHtmlResponse(response.headers, response.data)) {
+            htmlResponse = true;
+            continue;
+        }
+        return unwrapSeedanceTask(response.data as ApiEnvelope<SeedanceTask>);
+    }
+    if (htmlResponse) throw new Error("AikArt 中转地址返回了网页而不是 Seedance 任务 JSON，请检查中转接口路径");
+    throw new Error("Seedance 接口没有返回任务");
+}
+
+function isHtmlResponse(headers: Record<string, unknown> | undefined, data: unknown) {
+    const contentType = String(headers?.["content-type"] || headers?.["Content-Type"] || "").toLowerCase();
+    return contentType.includes("text/html") || (typeof data === "string" && /^\s*<!doctype html|^\s*<html[\s>]/i.test(data));
 }
 
 async function buildSeedanceContent(config: AiConfig, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[]) {
