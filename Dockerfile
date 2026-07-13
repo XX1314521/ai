@@ -5,13 +5,17 @@ WORKDIR /app
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+    NODE_ENV=development \
+    npm_config_production=false \
+    npm_config_include=dev \
     npm_config_registry=${NPM_REGISTRY} \
     npm_config_fetch_retries=5 \
     npm_config_fetch_retry_maxtimeout=120000 \
     npm_config_maxsockets=5
 
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --include=dev --ignore-scripts --no-audit --no-fund \
+    && npm rebuild esbuild --no-audit --no-fund
 
 COPY . .
 
