@@ -1,11 +1,17 @@
-FROM node:22-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+    npm_config_registry=${NPM_REGISTRY} \
+    npm_config_fetch_retries=5 \
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm_config_maxsockets=5
 
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 COPY . .
 

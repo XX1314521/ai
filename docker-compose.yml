@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_BASE: /
+        NPM_REGISTRY: https://registry.npmmirror.com
     image: aikart-web:latest
     container_name: aikart-web
     restart: unless-stopped

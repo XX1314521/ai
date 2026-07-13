@@ -17,6 +17,14 @@ cd aikart
 docker compose up -d --build
 ```
 
+如果之前构建失败，先清理失败的构建缓存再重试：
+
+```bash
+docker builder prune -f
+docker compose build --no-cache
+docker compose up -d
+```
+
 确认容器正常：
 
 ```bash
