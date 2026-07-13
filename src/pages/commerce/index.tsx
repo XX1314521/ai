@@ -4,11 +4,15 @@ import {
     ChevronRight,
     Copy,
     Download,
+    FileArchive,
     FolderPlus,
+    Globe2,
+    HelpCircle,
     Image as ImageIcon,
     Layers3,
+    Languages,
+    LayoutTemplate,
     LoaderCircle,
-    MessageSquareText,
     Pencil,
     Plus,
     RefreshCw,
@@ -21,35 +25,58 @@ import {
     WandSparkles,
     X,
 } from "lucide-react";
-import { App, Button, Input, Modal, Tabs } from "antd";
+import { App, Button, Input, Modal, Tabs, Tooltip, Tour, type TourProps } from "antd";
 import { saveAs } from "file-saver";
 import { nanoid } from "nanoid";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
+import {
+    commerceKitOptions,
+    commerceKitPrompt,
+    commerceLanguageOptions,
+    commerceMaterialLabel,
+    commerceOutputLabel,
+    commerceOutputOptions,
+    commercePlatformLabel,
+    commercePlatformOptions,
+    commerceRatioOptions,
+    commerceSpecPrompt,
+    recommendedCommerceRatio,
+    resolveCommerceRatio,
+    resolveCommerceRequestSize,
+    supportedCommerceRatios,
+    type CommerceKitVariant,
+    type CommerceOutputType,
+    type CommercePlatform,
+    type CommerceTextLanguage,
+} from "@/lib/commerce-specs";
+import { createZip } from "@/lib/zip";
 import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
 import { imageToDataUrl, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { allCommerceRoles, type CommercePrompt, type CommerceResult, type CommerceRole, useCommerceStore } from "@/stores/use-commerce-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
+import { CommerceSelect } from "./commerce-select";
+import { CommerceSpecEditor } from "./commerce-spec-editor";
 
 type RoleDraft = Pick<CommerceRole, "name" | "summary" | "systemPrompt" | "accent" | "avatarUrl" | "avatarStorageKey">;
 
 const initialRoleDraft: RoleDraft = { name: "", summary: "", systemPrompt: "", accent: "#36a7b7" };
-const ratioOptions = [
-    { value: "1:1", label: "正方形 1:1" },
-    { value: "3:4", label: "竖版 3:4" },
-    { value: "4:3", label: "横版 4:3" },
-    { value: "9:16", label: "竖屏 9:16" },
-    { value: "16:9", label: "横屏 16:9" },
-];
-
 const isImageFile = (file: File) => file.type.startsWith("image/") || /\.(avif|bmp|gif|jpe?g|png|webp)$/i.test(file.name);
+const COMMERCE_TOUR_KEY = "aikart:commerce_tour_v1";
 
 export default function CommercePage() {
     const { message } = App.useApp();
     const productInputRef = useRef<HTMLInputElement>(null);
+    const roleStripRef = useRef<HTMLElement>(null);
+    const uploadRef = useRef<HTMLDivElement>(null);
+    const outputTabsRef = useRef<HTMLDivElement>(null);
+    const descriptionRef = useRef<HTMLTextAreaElement>(null);
+    const settingsRef = useRef<HTMLDivElement>(null);
+    const actionsRef = useRef<HTMLDivElement>(null);
+    const kitRef = useRef<HTMLElement>(null);
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -67,21 +94,91 @@ export default function CommercePage() {
     const setPromptResult = useCommerceStore((state) => state.setPromptResult);
     const activePrompt = useCommerceStore((state) => state.activePrompt);
     const setActivePrompt = useCommerceStore((state) => state.setActivePrompt);
+    const outputType = useCommerceStore((state) => state.outputType) || "main";
+    const setOutputType = useCommerceStore((state) => state.setOutputType);
+    const platform = useCommerceStore((state) => state.platform) || "auto";
+    const setPlatform = useCommerceStore((state) => state.setPlatform);
+    const textLanguage = useCommerceStore((state) => state.textLanguage) || "none";
+    const setTextLanguage = useCommerceStore((state) => state.setTextLanguage);
+    const kitVariants = useCommerceStore((state) => state.kitVariants || ["scene", "selling-point", "close-up", "a-plus"]);
+    const setKitVariants = useCommerceStore((state) => state.setKitVariants);
     const results = useCommerceStore((state) => state.results);
     const setResults = useCommerceStore((state) => state.setResults);
-    const clearSession = useCommerceStore((state) => state.clearSession);
     const addAsset = useAssetStore((state) => state.addAsset);
     const roles = useMemo(() => allCommerceRoles(customRoles), [customRoles]);
     const selectedRole = roles.find((role) => role.id === selectedRoleId) || roles[0];
     const [roleManagerOpen, setRoleManagerOpen] = useState(false);
     const [assistantOpen, setAssistantOpen] = useState(false);
+    const [specEditorOpen, setSpecEditorOpen] = useState(false);
     const [promptRunning, setPromptRunning] = useState(false);
+    const [aiWriting, setAiWriting] = useState(false);
     const [imageRunning, setImageRunning] = useState(false);
+    const [generationMode, setGenerationMode] = useState<"single" | "kit" | null>(null);
+    const [pendingKitVariants, setPendingKitVariants] = useState<CommerceKitVariant[]>([]);
     const [productUploading, setProductUploading] = useState(false);
     const [pendingProductImage, setPendingProductImage] = useState<ReferenceImage | null>(null);
+    const [tourOpen, setTourOpen] = useState(false);
+    const [tourCurrent, setTourCurrent] = useState(0);
 
     const imageModel = effectiveConfig.imageModel || effectiveConfig.model;
     const textModel = effectiveConfig.textModel || effectiveConfig.model;
+    const supportedRatios = useMemo(() => supportedCommerceRatios(effectiveConfig, imageModel), [effectiveConfig, imageModel]);
+    const ratioSelectOptions = useMemo(() => commerceRatioOptions.map((option) => ({ ...option, disabled: !supportedRatios.includes(option.value), hint: supportedRatios.includes(option.value) ? undefined : "当前模型不支持" })), [supportedRatios]);
+    const countSelectOptions = useMemo(() => [1, 2, 3, 4].map((count) => ({ value: String(count), label: `${count} 张` })), []);
+
+    useEffect(() => {
+        if (!commerceHydrated || window.localStorage.getItem(COMMERCE_TOUR_KEY)) return;
+        const timer = window.setTimeout(() => setTourOpen(true), 450);
+        return () => window.clearTimeout(timer);
+    }, [commerceHydrated]);
+
+    const closeTour = () => {
+        window.localStorage.setItem(COMMERCE_TOUR_KEY, "completed");
+        setTourOpen(false);
+        setTourCurrent(0);
+    };
+
+    const openTour = () => {
+        setRoleManagerOpen(false);
+        setAssistantOpen(false);
+        setSpecEditorOpen(false);
+        setTourCurrent(0);
+        setTourOpen(true);
+    };
+
+    const tourSteps = useMemo<TourProps["steps"]>(() => [
+        { title: "选择创作角色", description: "不同角色会采用对应的电商视觉策略。你也可以创建自己的专业角色。", target: () => roleStripRef.current!, placement: "bottom" },
+        { title: "上传商品图", description: "上传 JPG、PNG 或 WebP。AikArt 会保存素材，并在提示词和生图中保持商品外观一致。", target: () => uploadRef.current!, placement: "right" },
+        { title: "选择素材类型", description: "主图、详情图和广告图会使用不同的构图规则，并自动推荐适合的比例。", target: () => outputTabsRef.current!, placement: "bottom" },
+        { title: "描述创作需求", description: "填写商品、目标人群、卖点与画面风格。内容越具体，生成结果越稳定。", target: () => descriptionRef.current!, placement: "top" },
+        { title: "设置平台与模型", description: "选择投放平台、文字语言、画面比例、张数和生图模型。不支持的比例会显示为灰色。", target: () => settingsRef.current!, placement: "top" },
+        { title: "整理提示词并生图", description: "先让 AI 整理专业提示词，也可以直接生成当前选择的主图、详情图或广告图。", target: () => actionsRef.current!, placement: "top" },
+        { title: "生成整套电商素材", description: "一次生成场景、卖点、特写和 A+ 多规格素材，结果可以整套下载或批量存入素材库。", target: () => kitRef.current!, placement: "top" },
+    ], []);
+
+    useEffect(() => {
+        if (supportedRatios.includes(config.size)) return;
+        updateConfig("size", resolveCommerceRatio(effectiveConfig, imageModel, config.size || recommendedCommerceRatio(outputType, platform)));
+    }, [config.size, effectiveConfig, imageModel, outputType, platform, supportedRatios, updateConfig]);
+
+    const changeOutputType = (value: CommerceOutputType) => {
+        setOutputType(value);
+        updateConfig("size", resolveCommerceRatio(effectiveConfig, imageModel, recommendedCommerceRatio(value, platform)));
+    };
+
+    const changePlatform = (value: CommercePlatform) => {
+        setPlatform(value);
+        updateConfig("size", resolveCommerceRatio(effectiveConfig, imageModel, recommendedCommerceRatio(outputType, value)));
+    };
+
+    const changeImageModel = (model: string) => {
+        updateConfig("imageModel", model);
+        updateConfig("size", resolveCommerceRatio(effectiveConfig, model, config.size || recommendedCommerceRatio(outputType, platform)));
+    };
+
+    const toggleKitVariant = (variant: CommerceKitVariant) => {
+        setKitVariants(kitVariants.includes(variant) ? kitVariants.filter((item) => item !== variant) : [...kitVariants, variant]);
+    };
 
     useEffect(() => {
         if (!commerceHydrated) return;
@@ -123,6 +220,52 @@ export default function CommercePage() {
         }
     };
 
+    const aiWriteDescription = async () => {
+        if (!description.trim() && !productImage) {
+            message.warning("请先上传商品图或输入简单的商品信息");
+            return;
+        }
+        if (!isAiConfigReady(effectiveConfig, textModel)) {
+            message.warning("请先配置可用的文本模型和 API Key");
+            openConfigDialog(true, "models");
+            return;
+        }
+        setAiWriting(true);
+        const requestConfig = { ...effectiveConfig, model: textModel, textModel };
+        const instruction = [
+            `已有商品信息：${description.trim() || "请从参考图识别商品"}`,
+            commerceSpecPrompt(outputType, platform, textLanguage),
+            "请将信息整理成一段 120 到 300 字的电商视觉创作要求，补齐目标人群、核心卖点、构图、场景、光线、材质和画面限制。",
+            "必须保持商品、包装、Logo、颜色和结构真实；不要输出标题、列表、Markdown 或解释，只返回创作要求正文。",
+        ].join("\n");
+        try {
+            const answer = await requestImageQuestion(
+                requestConfig,
+                [
+                    { role: "system", content: "你是电商视觉策划助手，负责把简略商品信息整理为准确、可执行的图片创作要求。" },
+                    {
+                        role: "user",
+                        content: productImage
+                            ? [
+                                  { type: "text", text: instruction },
+                                  { type: "image_url", image_url: { url: await imageToDataUrl(productImage) } },
+                              ]
+                            : instruction,
+                    },
+                ],
+                () => undefined,
+            );
+            const next = cleanPromptSection(answer, 1200);
+            if (!next) throw new Error("AI 没有返回可用内容");
+            setDescription(next);
+            message.success("创作要求已补充");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "AI 帮写失败");
+        } finally {
+            setAiWriting(false);
+        }
+    };
+
     const generatePrompt = async () => {
         if (!description.trim() && !productImage) {
             message.error("请上传商品图或填写商品描述");
@@ -141,7 +284,9 @@ export default function CommercePage() {
         const instruction = [
             selectedRole.systemPrompt,
             `商品信息：${productContent}`,
-            "请为电商商品主图生成一套可直接用于生图模型的提示词。必须保持商品外观真实，不能改变品牌、包装、颜色和结构。",
+            commerceSpecPrompt(outputType, platform, textLanguage),
+            `画面比例：${resolveCommerceRatio(effectiveConfig, imageModel, config.size || recommendedCommerceRatio(outputType, platform))}。`,
+            `请为电商${commerceOutputLabel(outputType)}生成一套可直接用于生图模型的提示词。必须保持商品外观真实，不能改变品牌、包装、颜色和结构。`,
             "内容要求：说明不超过120个中文字符；中文提示词控制在300到800个中文字符；英文提示词控制在180到450个英文单词。禁止重复句子、重复标签、重复输出同一组内容；英文提示词不得包含中文字符。",
             "只返回一个合法 JSON 对象，不要输出 Markdown、代码块或 JSON 之外的内容：",
             '{"intro":"用两到三句话说明视觉策略","chinese":"完整、具体、可直接生图的中文提示词","english":"与中文含义一致且不包含任何中文字符的专业英文提示词"}',
@@ -187,7 +332,11 @@ export default function CommercePage() {
     };
 
     const generateImages = async () => {
-        const prompt = promptResult?.[activePrompt] || buildFallbackPrompt(description, selectedRole);
+        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
+        const desiredRatio = config.size || recommendedCommerceRatio(outputType, platform);
+        const actualRatio = resolveCommerceRatio(effectiveConfig, imageModel, desiredRatio);
+        const requestSize = resolveCommerceRequestSize(effectiveConfig, imageModel, desiredRatio);
+        const prompt = [basePrompt, commerceSpecPrompt(outputType, platform, textLanguage), `最终画面比例为 ${actualRatio}。`].filter(Boolean).join("\n");
         if (!prompt.trim()) {
             message.error("请先填写商品描述或生成提示词");
             return;
@@ -198,7 +347,9 @@ export default function CommercePage() {
             return;
         }
         setImageRunning(true);
-        const requestConfig = { ...effectiveConfig, model: imageModel, imageModel };
+        setGenerationMode("single");
+        setPendingKitVariants([]);
+        const requestConfig = { ...effectiveConfig, model: imageModel, imageModel, size: requestSize };
         try {
             const generated = productImage
                 ? await requestEdit(requestConfig, prompt, [productImage])
@@ -206,7 +357,7 @@ export default function CommercePage() {
             const storedResults = await Promise.all(
                 generated.map(async (image) => {
                     const stored = await uploadImage(image.dataUrl);
-                    return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
+                    return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: outputType, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt };
                 }),
             );
             setResults(storedResults);
@@ -215,23 +366,87 @@ export default function CommercePage() {
             message.error(error instanceof Error ? error.message : "商品图生成失败");
         } finally {
             setImageRunning(false);
+            setGenerationMode(null);
         }
     };
 
-    const saveResult = async (result: CommerceResult, index: number) => {
+    const generateMaterialKit = async () => {
+        const selectedVariants = commerceKitOptions.filter((item) => kitVariants.includes(item.value));
+        if (!selectedVariants.length) {
+            message.warning("请至少选择一种套图素材");
+            return;
+        }
+        if (!isAiConfigReady(effectiveConfig, imageModel)) {
+            message.warning("请先配置可用的生图模型和 API Key");
+            openConfigDialog(true, "models");
+            return;
+        }
+        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
+        if (!basePrompt.trim()) {
+            message.error("请先上传商品图或填写商品描述");
+            return;
+        }
+
+        setImageRunning(true);
+        setGenerationMode("kit");
+        setPendingKitVariants(selectedVariants.map((item) => item.value));
+        setResults([]);
+
+        const tasks = selectedVariants.map(async (spec) => {
+            const actualRatio = resolveCommerceRatio(effectiveConfig, imageModel, spec.ratio);
+            const requestSize = resolveCommerceRequestSize(effectiveConfig, imageModel, spec.ratio);
+            const materialOutputType: CommerceOutputType = spec.value === "a-plus" ? "detail" : spec.value === "selling-point" ? "ad" : "main";
+            const prompt = [
+                basePrompt,
+                commerceSpecPrompt(materialOutputType, platform, textLanguage),
+                commerceKitPrompt(spec.value),
+                `这是同一套系列素材中的“${spec.label}”画面，最终比例为 ${actualRatio}。保持与其他规格一致的品牌色、布光、背景语言和版式系统。`,
+            ].join("\n");
+            const requestConfig = { ...effectiveConfig, model: imageModel, imageModel, size: requestSize, count: "1" };
+            const generated = productImage ? await requestEdit(requestConfig, prompt, [productImage]) : await requestGeneration(requestConfig, prompt);
+            const image = generated[0];
+            if (!image) throw new Error(`${spec.label}没有返回图片`);
+            const stored = await uploadImage(image.dataUrl);
+            return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: spec.value, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt } satisfies CommerceResult;
+        });
+
+        const settled = await Promise.allSettled(tasks);
+        const completed = settled.flatMap((item) => (item.status === "fulfilled" ? [item.value] : []));
+        const failures = settled.flatMap((item, index) => (item.status === "rejected" ? [`${selectedVariants[index].label}：${item.reason instanceof Error ? item.reason.message : "生成失败"}`] : []));
+        setResults(completed);
+        setPendingKitVariants([]);
+        setImageRunning(false);
+        setGenerationMode(null);
+        if (completed.length) message.success(`已完成 ${completed.length} 种规格素材`);
+        if (failures.length) message.warning(`${failures.length} 种规格未完成：${failures.join("；")}`);
+    };
+
+    const saveResult = async (result: CommerceResult, index: number, silent = false) => {
         const stored = result.storageKey && result.width && result.height && result.bytes && result.mimeType
             ? { url: result.dataUrl, storageKey: result.storageKey, width: result.width, height: result.height, bytes: result.bytes, mimeType: result.mimeType }
             : await uploadImage(result.dataUrl);
         addAsset({
             kind: "image",
-            title: `电商商品图 ${index + 1}`,
+            title: `电商${commerceMaterialLabel(result.materialType)} ${index + 1}`,
             coverUrl: stored.url,
-            tags: ["电商", selectedRole.name],
+            tags: ["电商", commerceMaterialLabel(result.materialType), commercePlatformLabel(result.platform || platform), selectedRole.name],
             source: "电商工作台",
             data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
-            metadata: { role: selectedRole.name, prompt: promptResult?.[activePrompt] || description },
+            metadata: { role: selectedRole.name, prompt: result.prompt || promptResult?.[activePrompt] || description, materialType: result.materialType, platform: result.platform || platform, language: result.language || textLanguage, size: result.size, model: result.model || imageModel },
         });
-        message.success("已存入我的素材");
+        if (!silent) message.success("已存入我的素材");
+    };
+
+    const saveAllResults = async () => {
+        await Promise.all(results.map((result, index) => saveResult(result, index, true)));
+        message.success(`已将 ${results.length} 张图片存入我的素材`);
+    };
+
+    const downloadAllResults = async () => {
+        const files = await Promise.all(results.map(async (result, index) => ({ name: `${String(index + 1).padStart(2, "0")}-${commerceMaterialLabel(result.materialType)}-${result.size || "image"}.png`, data: await (await fetch(result.dataUrl)).blob() })));
+        const zip = await createZip(files);
+        saveAs(zip, `AikArt-电商多规格素材-${new Date().toISOString().slice(0, 10)}.zip`);
+        message.success("整套素材已打包下载");
     };
 
     const copyPrompt = async (value: string) => {
@@ -251,11 +466,6 @@ export default function CommercePage() {
         window.setTimeout(() => document.getElementById("commerce-prompt-preview")?.scrollIntoView({ behavior: "smooth", block: "center" }), 180);
     };
 
-    const reset = () => {
-        clearSession();
-        setAssistantOpen(false);
-    };
-
     return (
         <main className="commerce-page h-full overflow-y-auto">
             <div className="commerce-shell mx-auto w-full max-w-[1560px] px-5 pb-16 pt-6 sm:px-8 xl:px-12">
@@ -265,10 +475,15 @@ export default function CommercePage() {
                         <h1>电商视觉工作台</h1>
                         <p>选择专业角色，把商品素材快速整理成可生成的商业视觉方案。</p>
                     </div>
-                    <Button icon={<UsersRound className="size-4" />} onClick={() => setRoleManagerOpen(true)}>角色管理</Button>
+                    <div className="commerce-heading-actions">
+                        <Tooltip title="电商工作台教程">
+                            <button type="button" className="commerce-help-button" aria-label="打开电商工作台教程" onClick={openTour}><HelpCircle className="size-5" /></button>
+                        </Tooltip>
+                        <Button icon={<UsersRound className="size-4" />} onClick={() => setRoleManagerOpen(true)}>角色管理</Button>
+                    </div>
                 </header>
 
-                <section className="commerce-role-strip" aria-label="电商角色">
+                <section ref={roleStripRef} className="commerce-role-strip" aria-label="电商角色">
                     <RoleSummary role={selectedRole} />
                     <div className="commerce-role-list hide-scrollbar">
                         {roles.map((role) => (
@@ -285,14 +500,7 @@ export default function CommercePage() {
                 </section>
 
                 <section className="commerce-composer">
-                    <aside className="commerce-tool-rail" aria-label="创作工具">
-                        <button type="button" className="is-active" title="角色" onClick={() => setRoleManagerOpen(true)}><UserRound className="size-4" /></button>
-                        <button type="button" title="编辑描述" onClick={() => document.getElementById("commerce-description")?.focus()}><Pencil className="size-4" /></button>
-                        <button type="button" title="生成提示词" onClick={() => void generatePrompt()}><MessageSquareText className="size-4" /></button>
-                        <button type="button" title="清空" onClick={reset}><Trash2 className="size-4" /></button>
-                    </aside>
-
-                    <div className="commerce-upload-column">
+                    <div ref={uploadRef} className="commerce-upload-column">
                         <input ref={productInputRef} className="hidden" type="file" accept="image/*" onChange={(event) => void uploadProduct(event.target.files)} />
                         {pendingProductImage || productImage ? (
                             <div className="commerce-product-preview">
@@ -315,7 +523,14 @@ export default function CommercePage() {
                     </div>
 
                     <div className="commerce-prompt-column">
+                        <div className="commerce-quick-specs">
+                            <div ref={outputTabsRef} className="commerce-output-tabs" aria-label="素材类型">
+                                {commerceOutputOptions.map((option) => <button key={option.value} type="button" className={outputType === option.value ? "is-active" : ""} onClick={() => changeOutputType(option.value)}>{option.label}</button>)}
+                            </div>
+                            <button type="button" className="commerce-edit-spec" onClick={() => setSpecEditorOpen(true)}><Pencil className="size-4" /> 编辑规格</button>
+                        </div>
                         <textarea
+                            ref={descriptionRef}
                             id="commerce-description"
                             value={description}
                             onChange={(event) => setDescription(event.target.value)}
@@ -323,22 +538,47 @@ export default function CommercePage() {
                             maxLength={3000}
                         />
                         <div className="commerce-prompt-meta"><span>{selectedRole.name}正在为你策划</span><b>{description.length}/3000</b></div>
-                        <div className="commerce-control-row">
-                            <label><span>画面比例</span><select value={config.size} onChange={(event) => updateConfig("size", event.target.value)}>{ratioOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                            <label><span>生成张数</span><select value={config.count} onChange={(event) => updateConfig("count", event.target.value)}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} 张</option>)}</select></label>
-                            <div className="commerce-model-control"><span>生图模型</span><ModelPicker config={config} capability="image" value={imageModel} onChange={(model) => updateConfig("imageModel", model)} onMissingConfig={() => openConfigDialog(false, "models")} /></div>
+                        <div ref={settingsRef} className="commerce-settings-block">
+                            <div className="commerce-context-row">
+                                <CommerceSelect value={platform} options={commercePlatformOptions} onChange={changePlatform} ariaLabel="目标平台" icon={<Globe2 className="size-3.5" />} />
+                                <CommerceSelect value={textLanguage} options={commerceLanguageOptions} onChange={setTextLanguage} ariaLabel="目标语言" icon={<Languages className="size-3.5" />} />
+                            </div>
+                            <div className="commerce-control-row">
+                                <label><span>画面比例</span><CommerceSelect value={config.size} options={ratioSelectOptions} onChange={(value) => updateConfig("size", value)} ariaLabel="画面比例" /></label>
+                                <label><span>生成张数</span><CommerceSelect value={config.count} options={countSelectOptions} onChange={(value) => updateConfig("count", value)} ariaLabel="生成张数" /></label>
+                                <div className="commerce-model-control"><span>生图模型</span><ModelPicker config={config} capability="image" value={imageModel} onChange={changeImageModel} onMissingConfig={() => openConfigDialog(false, "models")} className="commerce-model-picker" contentClassName="commerce-model-picker-content" /></div>
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                <div className="commerce-action-row">
+                <div ref={actionsRef} className="commerce-action-row">
                     <button type="button" className="commerce-secondary-action" disabled={promptRunning || productUploading} onClick={() => void generatePrompt()}>
                         {promptRunning ? <LoaderCircle className="size-5 animate-spin" /> : <Sparkles className="size-5" />} AI 整理提示词
                     </button>
                     <button type="button" className="commerce-primary-action" disabled={imageRunning || productUploading} onClick={() => void generateImages()}>
-                        {imageRunning ? <LoaderCircle className="size-5 animate-spin" /> : <WandSparkles className="size-5" />} {imageRunning ? "正在生成" : promptResult ? `使用${activePrompt === "chinese" ? "中文" : "英文"}提示词生成` : "生成商品图"}
+                        {imageRunning && generationMode === "single" ? <LoaderCircle className="size-5 animate-spin" /> : <WandSparkles className="size-5" />} {imageRunning && generationMode === "single" ? "正在生成" : `生成${commerceOutputLabel(outputType)}`}
                     </button>
                 </div>
+
+                <section ref={kitRef} className="commerce-kit-builder">
+                    <div className="commerce-kit-copy">
+                        <span><Layers3 className="size-4" /> 多规格素材套图</span>
+                        <h2>一套信息输出多规格素材</h2>
+                        <p>场景、卖点、特写、A+ 常用类型一键齐全，保持风格与版式统一，直接生成可投放规格。</p>
+                    </div>
+                    <div className="commerce-kit-options">
+                        {commerceKitOptions.map((option) => (
+                            <button key={option.value} type="button" className={kitVariants.includes(option.value) ? "is-active" : ""} onClick={() => toggleKitVariant(option.value)}>
+                                <span>{option.label}</span><small>{option.summary}</small><b>{resolveCommerceRatio(effectiveConfig, imageModel, option.ratio)}</b>
+                            </button>
+                        ))}
+                    </div>
+                    <button type="button" className="commerce-kit-generate" disabled={imageRunning || productUploading || !kitVariants.length} onClick={() => void generateMaterialKit()}>
+                        {imageRunning && generationMode === "kit" ? <LoaderCircle className="size-5 animate-spin" /> : <LayoutTemplate className="size-5" />}
+                        {imageRunning && generationMode === "kit" ? "正在生成多规格素材" : `生成整套素材（${kitVariants.length} 种）`}
+                    </button>
+                </section>
 
                 {promptResult ? (
                     <section id="commerce-prompt-preview" className="commerce-prompt-preview">
@@ -355,16 +595,21 @@ export default function CommercePage() {
 
                 {imageRunning || results.length ? (
                     <section className="commerce-results">
-                        <div className="commerce-section-title"><div><ImageIcon className="size-5" /><span>生成结果</span></div>{results.length ? <b>{results.length} 张</b> : null}</div>
+                        <div className="commerce-section-title commerce-results-title">
+                            <div><ImageIcon className="size-5" /><span>生成结果</span>{results.length ? <b>{results.length} 张</b> : null}</div>
+                            {results.length ? <div className="commerce-result-batch-actions"><button type="button" onClick={() => void saveAllResults()}><FolderPlus className="size-4" />全部存入素材</button><button type="button" onClick={() => void downloadAllResults()}><FileArchive className="size-4" />下载整套 ZIP</button></div> : null}
+                        </div>
                         <div className="commerce-result-grid">
-                            {imageRunning ? Array.from({ length: Math.max(1, Number(config.count) || 1) }, (_, index) => <div className="commerce-result-loading" key={index}><LoaderCircle className="size-7 animate-spin" /><span>正在创作商品图</span></div>) : null}
+                            {imageRunning && generationMode === "single" ? Array.from({ length: Math.max(1, Number(config.count) || 1) }, (_, index) => <div className="commerce-result-loading" key={index}><LoaderCircle className="size-7 animate-spin" /><span>正在创作{commerceOutputLabel(outputType)}</span></div>) : null}
+                            {imageRunning && generationMode === "kit" ? pendingKitVariants.map((variant) => <div className="commerce-result-loading" key={variant}><LoaderCircle className="size-7 animate-spin" /><span>正在生成{commerceMaterialLabel(variant)}</span></div>) : null}
                             {results.map((result, index) => (
                                 <article className="commerce-result-card" key={result.id}>
                                     <img src={result.dataUrl} alt={`电商生成结果 ${index + 1}`} />
-                                    <div>
-                                        <button type="button" title="下载" onClick={() => saveAs(result.dataUrl, `aikart-commerce-${index + 1}.png`)}><Download className="size-4" /></button>
-                                        <button type="button" title="存入素材" onClick={() => void saveResult(result, index)}><FolderPlus className="size-4" /></button>
-                                        <button type="button" title="删除" onClick={() => setResults((items) => items.filter((item) => item.id !== result.id))}><Trash2 className="size-4" /></button>
+                                    <span className="commerce-result-kind">{commerceMaterialLabel(result.materialType)} · {result.size || config.size}</span>
+                                    <div className="commerce-result-tools">
+                                        <Tooltip title="下载"><button type="button" aria-label="下载" onClick={() => saveAs(result.dataUrl, `aikart-${commerceMaterialLabel(result.materialType)}-${index + 1}.png`)}><Download className="size-4" /></button></Tooltip>
+                                        <Tooltip title="存入素材"><button type="button" aria-label="存入素材" onClick={() => void saveResult(result, index)}><FolderPlus className="size-4" /></button></Tooltip>
+                                        <Tooltip title="删除"><button type="button" aria-label="删除" onClick={() => setResults((items) => items.filter((item) => item.id !== result.id))}><Trash2 className="size-4" /></button></Tooltip>
                                     </div>
                                 </article>
                             ))}
@@ -373,6 +618,26 @@ export default function CommercePage() {
                 ) : null}
             </div>
 
+            <CommerceSpecEditor
+                open={specEditorOpen}
+                config={config}
+                imageModel={imageModel}
+                description={description}
+                outputType={outputType}
+                platform={platform}
+                textLanguage={textLanguage}
+                onClose={() => setSpecEditorOpen(false)}
+                onDescriptionChange={setDescription}
+                onOutputTypeChange={changeOutputType}
+                onPlatformChange={changePlatform}
+                onTextLanguageChange={setTextLanguage}
+                onSizeChange={(value) => updateConfig("size", value)}
+                onCountChange={(value) => updateConfig("count", value)}
+                onModelChange={changeImageModel}
+                onMissingConfig={() => openConfigDialog(false, "models")}
+                onAiWrite={() => void aiWriteDescription()}
+                aiWriting={aiWriting}
+            />
             <RoleManagerModal open={roleManagerOpen} onClose={() => setRoleManagerOpen(false)} />
             <AssistantModal
                 open={assistantOpen}
@@ -383,6 +648,23 @@ export default function CommercePage() {
                 onRegenerate={() => void generatePrompt()}
                 onUse={usePrompt}
                 onCopy={copyPrompt}
+            />
+            <Tour
+                open={tourOpen}
+                current={tourCurrent}
+                steps={tourSteps}
+                onChange={setTourCurrent}
+                onClose={closeTour}
+                onFinish={closeTour}
+                className="commerce-tour"
+                mask={{ color: "rgba(22, 31, 45, .58)" }}
+                gap={{ offset: 10, radius: 18 }}
+                scrollIntoViewOptions={{ behavior: "smooth", block: "center" }}
+                indicatorsRender={(current, total) => (
+                    <div className="commerce-tour-indicators" aria-label={`教程第 ${current + 1} 步，共 ${total} 步`}>
+                        {Array.from({ length: total }, (_, index) => <span key={index} className={index < current ? "is-done" : index === current ? "is-active" : ""}>{index + 1}</span>)}
+                    </div>
+                )}
             />
         </main>
     );
@@ -487,7 +769,7 @@ function RoleManagerModal({ open, onClose }: { open: boolean; onClose: () => voi
                                 {!role.builtIn ? <button type="button" title="删除角色" onClick={() => removeRole(role.id)}><Trash2 className="size-4" /></button> : null}
                             </div>)}
                         </div>
-                        <div className="commerce-dialog-model"><div><Bot className="size-4" /><span><strong>对话模型设置</strong><small>用于分析商品并生成中英文提示词</small></span></div><ModelPicker config={config} capability="text" value={config.textModel} onChange={(model) => updateConfig("textModel", model)} onMissingConfig={() => openConfigDialog(false, "models")} /></div>
+                        <div className="commerce-dialog-model"><div><Bot className="size-4" /><span><strong>对话模型设置</strong><small>用于分析商品并生成中英文提示词</small></span></div><ModelPicker config={config} capability="text" value={config.textModel} onChange={(model) => updateConfig("textModel", model)} onMissingConfig={() => openConfigDialog(false, "models")} className="commerce-model-picker" contentClassName="commerce-model-picker-content" /></div>
                         <Button type="primary" block onClick={onClose}>保存角色设置</Button>
                     </div>,
                 },

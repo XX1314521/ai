@@ -1,0 +1,16 @@
+.git
+.github
+.agents
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules
+dist
+release
+electron
+legacy-static
+*.log
+tsconfig.tsbuildinfo
+README.md
+BT_DOCKER_DEPLOY.md

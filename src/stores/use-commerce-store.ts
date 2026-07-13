@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import type { CommerceKitVariant, CommerceMaterialType, CommerceOutputType, CommercePlatform, CommerceTextLanguage } from "@/lib/commerce-specs";
 import type { ReferenceImage } from "@/types/image";
 
 export type CommercePrompt = { intro: string; chinese: string; english: string };
@@ -13,6 +14,12 @@ export type CommerceResult = {
     height?: number;
     bytes?: number;
     mimeType?: string;
+    materialType?: CommerceMaterialType;
+    platform?: CommercePlatform;
+    language?: CommerceTextLanguage;
+    size?: string;
+    model?: string;
+    prompt?: string;
 };
 
 export type CommerceRole = {
@@ -85,6 +92,10 @@ type CommerceStore = {
     productImage: ReferenceImage | null;
     promptResult: CommercePrompt | null;
     activePrompt: "chinese" | "english";
+    outputType: CommerceOutputType;
+    platform: CommercePlatform;
+    textLanguage: CommerceTextLanguage;
+    kitVariants: CommerceKitVariant[];
     results: CommerceResult[];
     addRole: (role: Omit<CommerceRole, "id" | "builtIn">) => string;
     updateRole: (id: string, patch: Partial<Omit<CommerceRole, "id" | "builtIn">>) => void;
@@ -94,6 +105,10 @@ type CommerceStore = {
     setProductImage: (productImage: ReferenceImage | null) => void;
     setPromptResult: (promptResult: CommercePrompt | null) => void;
     setActivePrompt: (activePrompt: "chinese" | "english") => void;
+    setOutputType: (outputType: CommerceOutputType) => void;
+    setPlatform: (platform: CommercePlatform) => void;
+    setTextLanguage: (textLanguage: CommerceTextLanguage) => void;
+    setKitVariants: (kitVariants: CommerceKitVariant[]) => void;
     setResults: (results: CommerceResult[] | ((results: CommerceResult[]) => CommerceResult[])) => void;
     clearSession: () => void;
 };
@@ -110,6 +125,10 @@ export const useCommerceStore = create<CommerceStore>()(
             productImage: null,
             promptResult: null,
             activePrompt: "chinese",
+            outputType: "main",
+            platform: "auto",
+            textLanguage: "none",
+            kitVariants: ["scene", "selling-point", "close-up", "a-plus"],
             results: [],
             addRole: (role) => {
                 const id = nanoid();
@@ -127,8 +146,12 @@ export const useCommerceStore = create<CommerceStore>()(
             setProductImage: (productImage) => set({ productImage }),
             setPromptResult: (promptResult) => set({ promptResult }),
             setActivePrompt: (activePrompt) => set({ activePrompt }),
+            setOutputType: (outputType) => set({ outputType }),
+            setPlatform: (platform) => set({ platform }),
+            setTextLanguage: (textLanguage) => set({ textLanguage }),
+            setKitVariants: (kitVariants) => set({ kitVariants }),
             setResults: (results) => set((state) => ({ results: typeof results === "function" ? results(state.results) : results })),
-            clearSession: () => set({ description: "", productImage: null, promptResult: null, activePrompt: "chinese", results: [] }),
+            clearSession: () => set({ description: "", productImage: null, promptResult: null, activePrompt: "chinese", outputType: "main", platform: "auto", textLanguage: "none", kitVariants: ["scene", "selling-point", "close-up", "a-plus"], results: [] }),
         }),
         {
             name: COMMERCE_STORE_KEY,
@@ -139,6 +162,10 @@ export const useCommerceStore = create<CommerceStore>()(
                 productImage: state.productImage ? { ...state.productImage, dataUrl: persistentImageUrl(state.productImage.dataUrl, state.productImage.storageKey) } : null,
                 promptResult: state.promptResult,
                 activePrompt: state.activePrompt,
+                outputType: state.outputType,
+                platform: state.platform,
+                textLanguage: state.textLanguage,
+                kitVariants: state.kitVariants,
                 results: state.results.map((result) => ({ ...result, dataUrl: persistentImageUrl(result.dataUrl, result.storageKey) })),
             }),
             onRehydrateStorage: () => () => {
