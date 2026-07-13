@@ -66,6 +66,7 @@ export function AppTopNav() {
                                         <Link
                                             key={tool.slug}
                                             to={`/${tool.slug}`}
+                                            title={tool.label}
                                             className={cn(
                                                 "app-nav-link relative flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-sm leading-6 transition",
                                                 active

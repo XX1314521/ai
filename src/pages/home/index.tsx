@@ -48,7 +48,7 @@ export default function IndexPage() {
     const navigate = useNavigate();
     const [activeCategory, setActiveCategory] = useState<"commerce" | "drama" | "beauty">("commerce");
     const categoryContent = {
-        commerce: { title: "上新视觉", route: "/image", summary: "夏季上新、商品主视觉、自然光" },
+        commerce: { title: "上新视觉", route: "/commerce", summary: "夏季上新、商品主视觉、自然光" },
         drama: { title: "角色分镜", route: "/video", summary: "漫画分镜、角色设定、连续叙事" },
         beauty: { title: "人像精修", route: "/image", summary: "自然人像、柔和光影、细节质感" },
     } as const;

@@ -10,7 +10,11 @@ export const localForageStorage: StateStorage = {
     getItem: async (name) => {
         if (typeof window === "undefined") return null;
         try {
-            return (await localforage.getItem<string>(name)) || null;
+            const stored = await localforage.getItem<string>(name);
+            if (stored) return stored;
+            const legacy = window.localStorage.getItem(name);
+            if (legacy) await localforage.setItem(name, legacy);
+            return legacy;
         } catch {
             return window.localStorage.getItem(name);
         }

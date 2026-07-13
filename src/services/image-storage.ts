@@ -12,24 +12,36 @@ export type UploadedImage = {
     mimeType: string;
 };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
+// Keep image blobs in their own database. Adding stores to the shared app
+// database can leave IndexedDB upgrades blocked by another open tab.
+const store = localforage.createInstance({ name: "infinite-canvas-images", storeName: "files" });
+const legacyStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
 const objectUrls = new Map<string, string>();
+const STORAGE_TIMEOUT_MS = 10_000;
 
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
-    const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
+    const blob = typeof input === "string" ? await fetchImageBlob(input) : input;
     const storageKey = `image:${nanoid()}`;
-    await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
-    const meta = await readImageMeta(url);
-    return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType: blob.type || meta.mimeType };
+    const metaPromise = readImageMeta(url);
+
+    try {
+        await withStorageTimeout(store.setItem(storageKey, blob), "保存图片超时，请刷新页面后重试");
+        const meta = await metaPromise;
+        return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType: blob.type || meta.mimeType };
+    } catch (error) {
+        objectUrls.delete(storageKey);
+        URL.revokeObjectURL(url);
+        throw error;
+    }
 }
 
 export async function resolveImageUrl(storageKey?: string, fallback = "") {
     if (!storageKey) return fallback;
     const cached = objectUrls.get(storageKey);
     if (cached) return cached;
-    const blob = await store.getItem<Blob>(storageKey);
+    const blob = await getImageBlob(storageKey);
     if (!blob) return fallback;
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
@@ -37,11 +49,18 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
 }
 
 export async function getImageBlob(storageKey: string) {
-    return store.getItem<Blob>(storageKey);
+    const current = await readImageStore(store, storageKey);
+    if (current) return current;
+
+    const legacy = await readImageStore(legacyStore, storageKey);
+    if (legacy) {
+        void withStorageTimeout(store.setItem(storageKey, legacy), "迁移图片超时").catch(() => undefined);
+    }
+    return legacy;
 }
 
 export async function setImageBlob(storageKey: string, blob: Blob) {
-    await store.setItem(storageKey, blob);
+    await withStorageTimeout(store.setItem(storageKey, blob), "保存图片超时，请刷新页面后重试");
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
@@ -59,17 +78,18 @@ export async function deleteStoredImages(keys: Iterable<string>) {
             const url = objectUrls.get(key);
             if (url) URL.revokeObjectURL(url);
             objectUrls.delete(key);
-            await store.removeItem(key);
+            await Promise.all([
+                withStorageTimeout(store.removeItem(key), "删除图片超时").catch(() => undefined),
+                withStorageTimeout(legacyStore.removeItem(key), "删除旧图片超时").catch(() => undefined),
+            ]);
         }),
     );
 }
 
 export async function cleanupUnusedImages(usedData: unknown) {
     const usedKeys = collectImageStorageKeys(usedData);
-    const unused: string[] = [];
-    await store.iterate((_value, key) => {
-        if (!usedKeys.has(key)) unused.push(key);
-    });
+    const [currentKeys, legacyKeys] = await Promise.all([listImageKeys(store), listImageKeys(legacyStore)]);
+    const unused = [...currentKeys, ...legacyKeys].filter((key) => !usedKeys.has(key));
     await deleteStoredImages(unused);
 }
 
@@ -86,5 +106,43 @@ function blobToDataUrl(blob: Blob) {
         reader.onload = () => resolve(String(reader.result || ""));
         reader.onerror = () => reject(new Error("读取图片失败"));
         reader.readAsDataURL(blob);
+    });
+}
+
+async function fetchImageBlob(url: string) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`读取图片失败（HTTP ${response.status}）`);
+    return response.blob();
+}
+
+async function readImageStore(imageStore: LocalForage, storageKey: string) {
+    try {
+        return await withStorageTimeout(imageStore.getItem<Blob>(storageKey), "读取图片超时");
+    } catch {
+        return null;
+    }
+}
+
+async function listImageKeys(imageStore: LocalForage) {
+    try {
+        return await withStorageTimeout(imageStore.keys(), "读取图片列表超时");
+    } catch {
+        return [];
+    }
+}
+
+function withStorageTimeout<T>(promise: Promise<T>, message: string, timeoutMs = STORAGE_TIMEOUT_MS) {
+    return new Promise<T>((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+        promise.then(
+            (value) => {
+                window.clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                window.clearTimeout(timer);
+                reject(error);
+            },
+        );
     });
 }
