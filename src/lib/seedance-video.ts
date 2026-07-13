@@ -57,7 +57,8 @@ const seedancePixels = {
 } as const;
 
 export function isSeedanceVideoConfig(config: AiConfig | Pick<AiConfig, "model" | "videoModel" | "baseUrl">) {
-    const requestConfig = "channels" in config ? resolveModelRequestConfig(config, config.model || config.videoModel) : config;
+    const selectedModel = config.videoModel || config.model;
+    const requestConfig = "channels" in config ? resolveModelRequestConfig(config, selectedModel) : { ...config, model: selectedModel };
     return isSeedanceVideoModel(modelOptionName(requestConfig.model || requestConfig.videoModel)) || isArkPlanBaseUrl(requestConfig.baseUrl);
 }
 
