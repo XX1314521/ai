@@ -125,7 +125,8 @@ export default function CommercePage() {
     const [tourOpen, setTourOpen] = useState(false);
     const [tourCurrent, setTourCurrent] = useState(0);
     const latestVisibleJobRef = useRef("");
-    const commerceJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "commerce"));
+    const generationJobs = useGenerationStore((state) => state.jobs);
+    const commerceJobs = useMemo(() => generationJobs.filter((job) => job.workbench === "commerce"), [generationJobs]);
     const backgroundJobs = commerceJobs.filter((job) => job.status === "running");
     const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
     const updateGenerationJob = useGenerationStore((state) => state.updateJob);

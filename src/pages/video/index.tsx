@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, LoaderCircle, Music2, Plus, SlidersHorizontal, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Input, Modal, Tag, Typography } from "antd";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
@@ -99,7 +99,8 @@ export default function VideoPage() {
     const videoCommand = useWorkbenchAgentStore((state) => state.videoCommand);
     const clearVideoCommand = useWorkbenchAgentStore((state) => state.clearVideoCommand);
     const processedCommandRef = useRef(0);
-    const videoJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "video"));
+    const generationJobs = useGenerationStore((state) => state.jobs);
+    const videoJobs = useMemo(() => generationJobs.filter((job) => job.workbench === "video"), [generationJobs]);
     const backgroundJobs = videoJobs.filter((job) => job.status === "running");
     const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
     const updateGenerationJob = useGenerationStore((state) => state.updateJob);

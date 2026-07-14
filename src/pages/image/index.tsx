@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
@@ -109,7 +109,8 @@ export default function ImagePage() {
     const canGenerate = Boolean(prompt.trim());
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
     const running = activeJobs > 0;
-    const imageJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "image"));
+    const generationJobs = useGenerationStore((state) => state.jobs);
+    const imageJobs = useMemo(() => generationJobs.filter((job) => job.workbench === "image"), [generationJobs]);
     const backgroundJobs = imageJobs.filter((job) => job.status === "running");
     const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
     const updateGenerationJob = useGenerationStore((state) => state.updateJob);
