@@ -493,9 +493,15 @@
     .commerce-product-preview-grid > img, .commerce-product-thumb { position: relative; min-width: 0; height: 92px; overflow: hidden; border: 1px solid #d8e3e8; border-radius: 12px; background: #eef4f6; }
     .commerce-product-preview-grid > img { width: 100%; object-fit: contain; }
     .commerce-product-thumb img { width: 100%; height: 100%; object-fit: contain; }
-    .commerce-product-thumb button { top: 5px; right: 5px; width: 23px; height: 23px; }
-    .commerce-product-preview button { position: absolute; top: 9px; right: 9px; display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(255,255,255,.82); border-radius: 50%; color: white; background: rgba(20, 27, 39, .68); backdrop-filter: blur(10px); }
-    .commerce-product-preview button:disabled { cursor: wait; opacity: .45; }
+    .commerce-product-thumb { box-shadow: 0 6px 14px rgba(39,77,94,.06); }
+    .commerce-product-thumb button { position: absolute; top: 6px; right: 6px; display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid rgba(255,255,255,.9); border-radius: 9px; color: #536579; background: rgba(255,255,255,.82); box-shadow: 0 5px 12px rgba(33,64,80,.15); backdrop-filter: blur(12px); transition: 150ms ease; }
+    .commerce-product-thumb button:hover:not(:disabled) { color: #d34f68; border-color: rgba(239,101,125,.3); background: #fff; transform: scale(1.05); }
+    .commerce-product-thumb button:disabled { cursor: wait; opacity: .45; }
+    .commerce-product-add { display: flex; min-width: 0; height: 92px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border: 1px dashed rgba(66,166,184,.5); border-radius: 12px; color: #18889c; background: rgba(233,250,253,.68); font-size: 10px; font-weight: 700; transition: 150ms ease; }
+    .commerce-product-add:hover { border-color: #35a9bd; color: #08788d; background: rgba(224,248,251,.98); transform: translateY(-1px); }
+    .commerce-product-clear { position: absolute; right: 10px; bottom: 10px; display: inline-flex; height: 28px; align-items: center; gap: 5px; border: 1px solid rgba(213,224,229,.9); border-radius: 10px; padding: 0 9px; color: #6d7d8e; background: rgba(255,255,255,.82); box-shadow: 0 5px 12px rgba(33,64,80,.1); backdrop-filter: blur(12px); font-size: 10px; font-weight: 700; }
+    .commerce-product-clear:hover:not(:disabled) { color: #d34f68; border-color: rgba(239,101,125,.3); background: #fff; }
+    .commerce-product-preview > button:disabled { cursor: wait; opacity: .45; }
     .commerce-upload-status { position: absolute; inset: auto 10px 10px; display: flex; height: 38px; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255,255,255,.8); border-radius: 12px; color: #203044; background: rgba(255,255,255,.84); font-size: 12px; box-shadow: 0 8px 22px rgba(34,65,82,.14); backdrop-filter: blur(14px); }
     .commerce-upload-status svg { color: #1592a7; }
     .commerce-prompt-column { display: flex; min-width: 0; flex-direction: column; }
@@ -552,6 +558,9 @@
     .commerce-kit-generate { display: inline-flex; min-width: 190px; height: 48px; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(39,168,192,.48); border-radius: 15px; padding: 0 16px; color: #086176; background: linear-gradient(135deg, rgba(222,250,253,.96), rgba(191,239,247,.92)); font-size: 12px; font-weight: 750; box-shadow: 0 11px 25px rgba(40,145,164,.14); }
     .commerce-kit-generate:disabled { cursor: wait; opacity: .56; }
     .commerce-prompt-preview, .commerce-results { margin-top: 22px; border-radius: 24px; padding: 20px; }
+    .commerce-prompt-actions { display: flex; align-items: center; gap: 8px; }
+    .commerce-prompt-actions button { display: inline-flex; height: 35px; align-items: center; gap: 6px; border: 1px solid rgba(107,190,204,.38); border-radius: 11px; padding: 0 11px; color: #147c8f; background: rgba(236,250,252,.84); box-shadow: 0 6px 14px rgba(41,126,143,.08), inset 0 1px 0 rgba(255,255,255,.9); font-size: 11px; font-weight: 700; transition: 150ms ease; }
+    .commerce-prompt-actions button:hover { color: #075f70; border-color: rgba(58,166,185,.62); background: #f7feff; transform: translateY(-1px); }
     .commerce-section-title { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
     .commerce-section-title > div { display: flex; align-items: center; gap: 9px; color: #172238; font-size: 16px; font-weight: 750; }
     .commerce-section-title > div svg { color: #1694a9; }
@@ -592,6 +601,7 @@
     .commerce-spec-type-tabs em { position: absolute; top: -8px; right: -3px; border-radius: 999px; padding: 2px 5px; color: white; background: #ff4d63; font-size: 8px; font-style: normal; }
     .commerce-spec-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .commerce-spec-editor-grid.is-three { grid-template-columns: 1fr .72fr 1.35fr; }
+    .commerce-spec-editor-grid.is-four { grid-template-columns: .85fr .62fr 1.2fr 1.2fr; }
     .commerce-spec-editor label, .commerce-spec-model { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: #566478; font-size: 11px; font-weight: 650; }
     .commerce-spec-editor label > span, .commerce-spec-model > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .commerce-spec-editor label > span small { color: #97a2af; font-size: 9px; font-weight: 500; }
@@ -625,6 +635,43 @@
     .commerce-dialog-model > div > span { display: flex; flex-direction: column; }
     .commerce-dialog-model strong { color: #344158; font-size: 12px; }
     .commerce-dialog-model small { color: #8b97a5; font-size: 10px; }
+    .aikart-config-modal .ant-modal-content, .config-page .ant-card { overflow: hidden; border: 1px solid rgba(255,255,255,.9) !important; border-radius: 24px !important; background: rgba(250,253,254,.9) !important; box-shadow: 0 24px 70px rgba(35,63,81,.16) !important; backdrop-filter: blur(24px) saturate(145%); }
+    .aikart-config-modal .ant-modal-header { border-bottom: 1px solid rgba(215,229,234,.8); background: transparent; }
+    .aikart-config-modal .ant-modal-body, .config-page { color: #26364a; }
+    .aikart-config-modal .ant-tabs-nav, .config-page .ant-tabs-nav { margin-bottom: 20px; }
+    .aikart-config-modal .ant-tabs-tab, .config-page .ant-tabs-tab { border: 1px solid transparent !important; border-radius: 11px !important; padding: 8px 13px !important; color: #7b8999; transition: 150ms ease; }
+    .aikart-config-modal .ant-tabs-tab:hover, .config-page .ant-tabs-tab:hover { color: #087d92; background: rgba(232,249,252,.7); }
+    .aikart-config-modal .ant-tabs-tab-active, .config-page .ant-tabs-tab-active { border-color: rgba(91,188,204,.28) !important; background: rgba(232,249,252,.9); }
+    .aikart-config-modal .ant-tabs-tab-btn, .config-page .ant-tabs-tab-btn { color: inherit !important; font-weight: 700; }
+    .aikart-config-modal .ant-tabs-ink-bar, .config-page .ant-tabs-ink-bar { display: none; }
+    .aikart-config-modal .ant-form-item-label > label, .config-page .ant-form-item-label > label { color: #5d6e81; font-size: 12px; font-weight: 700; }
+    .aikart-config-modal .ant-input, .aikart-config-modal .ant-input-affix-wrapper, .aikart-config-modal .ant-select-selector, .config-page .ant-input, .config-page .ant-input-affix-wrapper, .config-page .ant-select-selector { min-height: 38px; border-color: rgba(191,211,220,.85) !important; border-radius: 12px !important; background: rgba(255,255,255,.72) !important; box-shadow: 0 5px 14px rgba(39,78,96,.05), inset 0 1px 0 rgba(255,255,255,.9) !important; }
+    .aikart-config-modal .ant-input:focus, .aikart-config-modal .ant-input-affix-wrapper-focused, .aikart-config-modal .ant-select-focused .ant-select-selector, .config-page .ant-input:focus, .config-page .ant-input-affix-wrapper-focused, .config-page .ant-select-focused .ant-select-selector { border-color: #5cbccc !important; box-shadow: 0 0 0 3px rgba(75,181,201,.13) !important; }
+    .aikart-config-modal .ant-btn, .config-page .ant-btn { min-height: 36px; border-color: rgba(191,211,220,.9); border-radius: 12px !important; color: #52667b; background: rgba(255,255,255,.72); box-shadow: 0 5px 13px rgba(39,78,96,.05), inset 0 1px 0 rgba(255,255,255,.88); }
+    .aikart-config-modal .ant-btn-primary, .config-page .ant-btn-primary { border-color: rgba(61,177,197,.5) !important; color: #075e71 !important; background: linear-gradient(135deg, #e0faff, #c0eff5) !important; }
+    .aikart-config-modal .ant-btn-dangerous { color: #c65368 !important; border-color: rgba(225,125,143,.35) !important; background: rgba(255,244,246,.82) !important; }
+    .aikart-config-modal .ant-card, .config-page .ant-card { border-radius: 18px !important; background: rgba(255,255,255,.58) !important; box-shadow: 0 8px 20px rgba(39,78,96,.05) !important; }
+    .commerce-text-model-control { min-width: 190px; }
+    .showcase-page { background: linear-gradient(rgba(130,157,181,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(130,157,181,.055) 1px, transparent 1px), radial-gradient(circle at 15% 15%, rgba(146,215,255,.26), transparent 30%), radial-gradient(circle at 85% 20%, rgba(169,242,226,.28), transparent 31%), linear-gradient(135deg,#f5fbff,#fff 48%,#f4fcf9); background-size: 28px 28px,28px 28px,auto,auto,auto; }
+    .showcase-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #6f7f91; }
+    .showcase-placeholder > span { display: grid; width: 64px; height: 64px; place-items: center; border: 1px solid rgba(255,255,255,.9); border-radius: 20px; color: #12899e; background: rgba(255,255,255,.74); box-shadow: 0 15px 32px rgba(47,105,125,.12); backdrop-filter: blur(18px); }
+    .showcase-placeholder h1 { margin: 0; color: #172238; font-size: 26px; font-weight: 800; }
+    .showcase-placeholder p { margin: 0; font-size: 13px; }
+    .dark .showcase-page { background: linear-gradient(rgba(168,205,226,.06) 1px, transparent 1px), linear-gradient(90deg,rgba(168,205,226,.06) 1px,transparent 1px), linear-gradient(135deg,#101a2a,#161b29 50%,#10231f); }
+    .dark .showcase-placeholder > span { border-color: rgba(190,224,235,.18); background: rgba(255,255,255,.08); }
+    .dark .showcase-placeholder h1 { color: #f2f5ff; }
+    .aikart-config-modal + .ant-select-dropdown, .ant-select-dropdown { border: 1px solid rgba(255,255,255,.9) !important; border-radius: 15px !important; padding: 6px !important; background: rgba(250,253,254,.96) !important; box-shadow: 0 22px 55px rgba(35,63,81,.18) !important; backdrop-filter: blur(22px) saturate(145%); }
+    .ant-select-dropdown .ant-select-item { min-height: 35px; border-radius: 10px !important; color: #52667b; }
+    .ant-select-dropdown .ant-select-item-option-active, .ant-select-dropdown .ant-select-item-option-selected { color: #087d92 !important; background: rgba(232,249,252,.88) !important; }
+    .dark .aikart-config-modal .ant-modal-content, .dark .config-page .ant-card { border-color: rgba(190,224,235,.18) !important; background: rgba(28,36,48,.9) !important; box-shadow: 0 24px 70px rgba(0,0,0,.32) !important; }
+    .dark .aikart-config-modal .ant-modal-header, .dark .aikart-config-modal .ant-modal-body, .dark .config-page { color: #edf5ff; }
+    .dark .aikart-config-modal .ant-tabs-tab, .dark .config-page .ant-tabs-tab { color: #9eafc1; }
+    .dark .aikart-config-modal .ant-tabs-tab-active, .dark .config-page .ant-tabs-tab-active { color: #bdeff8; background: rgba(57,151,170,.2); }
+    .dark .aikart-config-modal .ant-input, .dark .aikart-config-modal .ant-input-affix-wrapper, .dark .aikart-config-modal .ant-select-selector, .dark .config-page .ant-input, .dark .config-page .ant-input-affix-wrapper, .dark .config-page .ant-select-selector { border-color: rgba(190,224,235,.2) !important; color: #edf5ff !important; background: rgba(255,255,255,.07) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08) !important; }
+    .dark .aikart-config-modal .ant-btn, .dark .config-page .ant-btn { border-color: rgba(190,224,235,.2); color: #c6d4e2; background: rgba(255,255,255,.08); }
+    .dark .ant-select-dropdown { border-color: rgba(190,224,235,.18) !important; background: rgba(28,36,48,.97) !important; }
+    .dark .ant-select-dropdown .ant-select-item { color: #c6d4e2; }
+    .dark .ant-select-dropdown .ant-select-item-option-active, .dark .ant-select-dropdown .ant-select-item-option-selected { color: #bdeff8 !important; background: rgba(57,151,170,.2) !important; }
     .commerce-role-create { display: flex; flex-direction: column; gap: 18px; }
     .commerce-role-create-top { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; }
     .commerce-avatar-field { display: flex; flex-direction: column; gap: 8px; color: #536175; font-size: 12px; font-weight: 650; }
@@ -732,7 +779,7 @@
         .commerce-dialog-model { align-items: stretch; flex-direction: column; }
         .commerce-assistant-prompt-grid { grid-template-columns: 1fr; }
         .commerce-assistant-prompt pre { min-height: 130px; }
-        .commerce-spec-editor-grid, .commerce-spec-editor-grid.is-three { grid-template-columns: 1fr; }
+        .commerce-spec-editor-grid, .commerce-spec-editor-grid.is-three, .commerce-spec-editor-grid.is-four { grid-template-columns: 1fr; }
         .commerce-role-modal .ant-modal-body, .commerce-assistant-modal .ant-modal-body { padding-inline: 14px; }
     }
 

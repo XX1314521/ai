@@ -1,9 +1,9 @@
 import {
     Bot,
-    Check,
     ChevronRight,
     Copy,
     Download,
+    Eye,
     FileArchive,
     FolderPlus,
     Globe2,
@@ -57,6 +57,7 @@ import { imageToDataUrl, resolveImageUrl, uploadImage } from "@/services/image-s
 import { allCommerceRoles, type CommerceHistory, type CommercePrompt, type CommerceResult, type CommerceRole, useCommerceStore } from "@/stores/use-commerce-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { useGenerationStore } from "@/stores/use-generation-store";
 import type { ReferenceImage } from "@/types/image";
 import { CommerceSelect } from "./commerce-select";
 import { CommerceSpecEditor } from "./commerce-spec-editor";
@@ -124,13 +125,23 @@ export default function CommercePage() {
     const [tourOpen, setTourOpen] = useState(false);
     const [tourCurrent, setTourCurrent] = useState(0);
     const latestVisibleJobRef = useRef("");
+    const commerceJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "commerce"));
+    const backgroundJobs = commerceJobs.filter((job) => job.status === "running");
+    const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
+    const updateGenerationJob = useGenerationStore((state) => state.updateJob);
+
+    useEffect(() => {
+        const latest = [...commerceJobs].sort((a, b) => b.updatedAt - a.updatedAt).find((job) => job.status !== "running" && job.payload && typeof job.payload === "object");
+        const payload = latest?.payload as { results?: CommerceResult[] } | undefined;
+        if (payload?.results?.length && !results.length) setResults(payload.results);
+    }, [commerceJobs, results.length, setResults]);
 
     const imageModel = effectiveConfig.imageModel || effectiveConfig.model;
     const textModel = effectiveConfig.textModel || effectiveConfig.model;
     const supportedRatios = useMemo(() => supportedCommerceRatios(effectiveConfig, imageModel), [effectiveConfig, imageModel]);
     const ratioSelectOptions = useMemo(() => commerceRatioOptions.map((option) => ({ ...option, disabled: !supportedRatios.includes(option.value), hint: supportedRatios.includes(option.value) ? undefined : "当前模型不支持" })), [supportedRatios]);
     const countSelectOptions = useMemo(() => [1, 2, 3, 4].map((count) => ({ value: String(count), label: `${count} 张` })), []);
-    const imageRunning = pendingJobs.length > 0;
+    const imageRunning = pendingJobs.length > 0 || backgroundJobs.length > 0;
     const hasSingleJob = pendingJobs.some((job) => job.mode === "single");
     const hasKitJob = pendingJobs.some((job) => job.mode === "kit");
 
@@ -335,6 +346,7 @@ export default function CommercePage() {
             }
             setPromptResult(parsed);
             setActivePrompt("chinese");
+            setAssistantOpen(false);
         } catch (error) {
             message.error(error instanceof Error ? error.message : "提示词生成失败");
             setAssistantOpen(false);
@@ -360,6 +372,7 @@ export default function CommercePage() {
         }
         const jobId = nanoid();
         latestVisibleJobRef.current = jobId;
+        upsertGenerationJob({ id: jobId, workbench: "commerce", label: `生成${commerceOutputLabel(outputType)}`, status: "running", createdAt: Date.now(), progress: 0, total: 1, message: "正在生成商品图" });
         setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "single", labels: [commerceOutputLabel(outputType)] }]);
         setResults([]);
         setGenerationMode("single");
@@ -376,8 +389,10 @@ export default function CommercePage() {
             );
             if (latestVisibleJobRef.current === jobId) setResults(storedResults);
             addHistory({ id: jobId, createdAt: Date.now(), title: `${commerceOutputLabel(outputType)} · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt, results: storedResults });
+            updateGenerationJob(jobId, { status: "success", progress: 1, message: `已完成 ${storedResults.length} 张商品图`, payload: { results: storedResults } });
             message.success(`已生成并保存 ${storedResults.length} 张商品图`);
         } catch (error) {
+            updateGenerationJob(jobId, { status: "failed", progress: 1, message: "商品图生成失败", error: error instanceof Error ? error.message : "生成失败" });
             message.error(error instanceof Error ? error.message : "商品图生成失败");
         } finally {
             setPendingJobs((jobs) => jobs.filter((job) => job.id !== jobId));
@@ -404,6 +419,7 @@ export default function CommercePage() {
 
         const jobId = nanoid();
         latestVisibleJobRef.current = jobId;
+        upsertGenerationJob({ id: jobId, workbench: "commerce", label: "生成整套素材", status: "running", createdAt: Date.now(), progress: 0, total: selectedVariants.length, message: "正在生成套图" });
         setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "kit", labels: selectedVariants.map((item) => item.value) }]);
         setResults([]);
         setGenerationMode("kit");
@@ -431,6 +447,7 @@ export default function CommercePage() {
         const failures = settled.flatMap((item, index) => (item.status === "rejected" ? [`${selectedVariants[index].label}：${item.reason instanceof Error ? item.reason.message : "生成失败"}`] : []));
         if (latestVisibleJobRef.current === jobId) setResults(completed);
         if (completed.length) addHistory({ id: jobId, createdAt: Date.now(), title: `整套素材 · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt: basePrompt, results: completed });
+        updateGenerationJob(jobId, { status: completed.length ? "success" : "failed", progress: selectedVariants.length, message: completed.length ? `已完成 ${completed.length} 种规格素材` : "套图生成失败", error: failures.join("；") || undefined, payload: { results: completed } });
         setPendingJobs((jobs) => jobs.filter((job) => job.id !== jobId));
         setGenerationMode(null);
         if (completed.length) message.success(`已完成 ${completed.length} 种规格素材`);
@@ -520,14 +537,15 @@ export default function CommercePage() {
                         <input ref={productInputRef} className="hidden" type="file" accept="image/*" multiple onChange={(event) => void uploadProduct(event.target.files)} />
                         {pendingProductImage || productImage.length ? (
                             <div className="commerce-product-preview commerce-product-preview-grid">
-                                {pendingProductImage ? <img src={pendingProductImage.dataUrl} alt={pendingProductImage.name} /> : productImage.map((image, index) => <div key={image.id} className="commerce-product-thumb"><img src={image.dataUrl} alt={image.name} /><button type="button" title="移除商品图" disabled={productUploading} onClick={() => setProductImage((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X className="size-3.5" /></button></div>)}
+                                {pendingProductImage ? <div className="commerce-product-thumb is-uploading"><img src={pendingProductImage.dataUrl} alt={pendingProductImage.name} /></div> : productImage.map((image, index) => <div key={image.id} className="commerce-product-thumb"><img src={image.dataUrl} alt={image.name} /><button type="button" className="commerce-product-remove" title="移除商品图" disabled={productUploading} onClick={() => setProductImage((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X className="size-3.5" /></button></div>)}
+                                {!pendingProductImage && !productUploading ? <button type="button" className="commerce-product-add" title="继续添加商品图" aria-label="继续添加商品图" onClick={() => productInputRef.current?.click()}><Plus className="size-5" /><span>继续添加</span></button> : null}
                                 {productUploading ? (
                                     <div className="commerce-upload-status" role="status">
                                         <LoaderCircle className="size-5 animate-spin" />
                                         <strong>正在保存图片</strong>
                                     </div>
                                 ) : null}
-                                <button type="button" title="移除全部商品图" disabled={productUploading} onClick={() => setProductImage([])}><X className="size-4" /></button>
+                                {!pendingProductImage && productImage.length ? <button type="button" className="commerce-product-clear" title="移除全部商品图" disabled={productUploading} onClick={() => setProductImage([])}><Trash2 className="size-4" /><span>清空</span></button> : null}
                             </div>
                         ) : (
                             <button type="button" className="commerce-upload" onClick={() => productInputRef.current?.click()}>
@@ -559,10 +577,11 @@ export default function CommercePage() {
                                 <CommerceSelect value={platform} options={commercePlatformOptions} onChange={changePlatform} ariaLabel="目标平台" icon={<Globe2 className="size-3.5" />} />
                                 <CommerceSelect value={textLanguage} options={commerceLanguageOptions} onChange={setTextLanguage} ariaLabel="目标语言" icon={<Languages className="size-3.5" />} />
                             </div>
-                            <div className="commerce-control-row">
+                                <div className="commerce-control-row">
                                 <label><span>画面比例</span><CommerceSelect value={config.size} options={ratioSelectOptions} onChange={(value) => updateConfig("size", value)} ariaLabel="画面比例" /></label>
                                 <label><span>生成张数</span><CommerceSelect value={config.count} options={countSelectOptions} onChange={(value) => updateConfig("count", value)} ariaLabel="生成张数" /></label>
                                 <div className="commerce-model-control"><span>生图模型</span><ModelPicker config={config} capability="image" value={imageModel} onChange={changeImageModel} onMissingConfig={() => openConfigDialog(false, "models")} className="commerce-model-picker" contentClassName="commerce-model-picker-content" /></div>
+                                <div className="commerce-model-control commerce-text-model-control"><span>文本模型</span><ModelPicker config={config} capability="text" value={textModel} onChange={(model) => updateConfig("textModel", model)} onMissingConfig={() => openConfigDialog(false, "models")} className="commerce-model-picker" contentClassName="commerce-model-picker-content" /></div>
                             </div>
                         </div>
                     </div>
@@ -598,14 +617,7 @@ export default function CommercePage() {
 
                 {promptResult ? (
                     <section id="commerce-prompt-preview" className="commerce-prompt-preview">
-                        <div className="commerce-section-title"><div><Sparkles className="size-5" /><span>AI 视觉方案</span><b>当前使用：{activePrompt === "chinese" ? "中文" : "英文"}</b></div><button type="button" onClick={() => setAssistantOpen(true)}>查看完整方案 <ChevronRight className="size-4" /></button></div>
-                        <p>{promptResult.intro}</p>
-                        <div className="commerce-prompt-tabs">
-                            <button type="button" className={activePrompt === "chinese" ? "is-active" : ""} onClick={() => setActivePrompt("chinese")}><Check className="size-4" /> 中文提示词</button>
-                            <button type="button" className={activePrompt === "english" ? "is-active" : ""} onClick={() => setActivePrompt("english")}><Check className="size-4" /> 英文提示词</button>
-                            <button type="button" className="commerce-copy-button" onClick={() => void copyPrompt(promptResult[activePrompt])}><Copy className="size-4" /> 复制</button>
-                        </div>
-                        <pre>{promptResult[activePrompt]}</pre>
+                        <div className="commerce-section-title"><div><Sparkles className="size-5" /><span>AI 视觉方案</span><b>提示词已生成</b></div><div className="commerce-prompt-actions"><button type="button" onClick={() => setAssistantOpen(true)}><Eye className="size-4" />预览提示词</button><button type="button" onClick={() => void copyPrompt(promptResult[activePrompt])}><Copy className="size-4" />复制提示词</button></div></div>
                     </section>
                 ) : null}
 
@@ -616,7 +628,7 @@ export default function CommercePage() {
                             {results.length ? <div className="commerce-result-batch-actions"><button type="button" onClick={() => void saveAllResults()}><FolderPlus className="size-4" />全部存入素材</button><button type="button" onClick={() => void downloadAllResults()}><FileArchive className="size-4" />下载整套 ZIP</button></div> : null}
                         </div>
                         <div className="commerce-result-grid">
-                            {pendingJobs.flatMap((job) => job.labels.map((label, index) => <div className="commerce-result-loading" key={`${job.id}-${label}-${index}`}><LoaderCircle className="size-7 animate-spin" /><span>正在生成{commerceMaterialLabel(label as CommerceKitVariant) || label}</span></div>))}
+                            {[...pendingJobs, ...backgroundJobs.map((job) => ({ id: job.id, mode: "kit" as const, labels: [job.label] }))].flatMap((job) => job.labels.map((label, index) => <div className="commerce-result-loading" key={`${job.id}-${label}-${index}`}><LoaderCircle className="size-7 animate-spin" /><span>正在生成{commerceMaterialLabel(label as CommerceKitVariant) || label}</span></div>))}
                             {results.map((result, index) => (
                                 <article className="commerce-result-card" key={result.id}>
                                     <button type="button" className="block size-full cursor-zoom-in" onClick={() => setPreviewImage(result)} aria-label="预览图片"><img src={result.dataUrl} alt={`电商生成结果 ${index + 1}`} /></button>
@@ -650,6 +662,7 @@ export default function CommercePage() {
                 open={specEditorOpen}
                 config={config}
                 imageModel={imageModel}
+                textModel={textModel}
                 description={description}
                 outputType={outputType}
                 platform={platform}
@@ -662,6 +675,7 @@ export default function CommercePage() {
                 onSizeChange={(value) => updateConfig("size", value)}
                 onCountChange={(value) => updateConfig("count", value)}
                 onModelChange={changeImageModel}
+                onTextModelChange={(model) => updateConfig("textModel", model)}
                 onMissingConfig={() => openConfigDialog(false, "models")}
                 onAiWrite={() => void aiWriteDescription()}
                 aiWriting={aiWriting}

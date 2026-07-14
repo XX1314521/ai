@@ -1,4 +1,4 @@
-import { FileText, ImagePlus, Images, Maximize2, Settings2, ShoppingBag, Video } from "lucide-react";
+import { FileText, GalleryHorizontalEnd, ImagePlus, Images, Maximize2, Settings2, ShoppingBag, Video } from "lucide-react";
 
 export const navigationTools = [
     {
@@ -30,6 +30,11 @@ export const navigationTools = [
         slug: "assets",
         label: "我的素材",
         icon: Images,
+    },
+    {
+        slug: "showcase",
+        label: "作品展示",
+        icon: GalleryHorizontalEnd,
     },
     {
         slug: "config",

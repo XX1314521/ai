@@ -17,6 +17,7 @@ import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "
 import { requestEdit, requestGeneration } from "@/services/api/image";
 import { deleteStoredImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
+import { useGenerationStore } from "@/stores/use-generation-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 import type { ReferenceImage } from "@/types/image";
 
@@ -108,6 +109,23 @@ export default function ImagePage() {
     const canGenerate = Boolean(prompt.trim());
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
     const running = activeJobs > 0;
+    const imageJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "image"));
+    const backgroundJobs = imageJobs.filter((job) => job.status === "running");
+    const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
+    const updateGenerationJob = useGenerationStore((state) => state.updateJob);
+
+    useEffect(() => {
+        const completedBatches = imageJobs
+            .filter((job) => job.status !== "running" && job.payload && typeof job.payload === "object")
+            .map((job) => (job.payload as { batch?: GenerationBatch }).batch)
+            .filter((batch): batch is GenerationBatch => Boolean(batch));
+        if (!completedBatches.length) return;
+        setBatches((current) => {
+            const known = new Set(current.map((batch) => batch.id));
+            const missing = completedBatches.filter((batch) => !known.has(batch.id));
+            return missing.length ? [...current, ...missing] : current;
+        });
+    }, [imageJobs]);
 
     useEffect(() => {
         if (!running || !startedAt) return;
@@ -169,12 +187,13 @@ export default function ImagePage() {
         setElapsedMs(0);
         setPreviewLog(null);
         const batchId = nanoid();
-        const batchResults = Array.from({ length: generationCount }, () => ({ id: nanoid(), status: "pending" as const }));
+        const batchResults: GenerationResult[] = Array.from({ length: generationCount }, () => ({ id: nanoid(), status: "pending" as const }));
         setBatches((value) => [...value, { id: batchId, createdAt: Date.now(), prompt: snapshot.text, references: snapshot.references, model, config: snapshot.config, results: batchResults }]);
         setPrompt("");
         setActiveJobs((value) => value + 1);
         const batchStartedAt = performance.now();
         setStartedAt(batchStartedAt);
+        upsertGenerationJob({ id: batchId, workbench: "image", label: "生图工作台", status: "running", createdAt: Date.now(), progress: 0, total: generationCount, message: "正在生成图片" });
 
         const tasks = Array.from({ length: generationCount }, (_, index) => runGenerationSlot(batchId, index, snapshot));
 
@@ -195,6 +214,15 @@ export default function ImagePage() {
                 const image = logImages.find((entry) => entry.id === item.image?.id);
                 return image ? { ...item, image } : item;
             }) } : batch));
+            const completedBatch: GenerationBatch = {
+                id: batchId,
+                createdAt: Date.now(),
+                prompt: snapshot.text,
+                references: snapshot.references,
+                model,
+                config: snapshot.config,
+                results: logImages.map((image) => ({ id: image.id, status: "success" as const, image })),
+            };
             saveLog(
                 buildLog({
                     prompt: text,
@@ -209,6 +237,9 @@ export default function ImagePage() {
                 }),
             );
             successCount ? message.success("图片已生成") : message.error(failed?.reason instanceof Error ? failed.reason.message : "生成失败");
+            updateGenerationJob(batchId, { status: successCount ? "success" : "failed", progress: generationCount, message: successCount ? `已完成 ${successCount} 张图片` : "图片生成失败", error: failed?.reason instanceof Error ? failed.reason.message : undefined, payload: { batch: completedBatch } });
+        } catch (error) {
+            updateGenerationJob(batchId, { status: "failed", message: "图片生成失败", error: error instanceof Error ? error.message : "生成失败" });
         } finally {
             setActiveJobs((value) => Math.max(0, value - 1));
         }
@@ -327,9 +358,11 @@ export default function ImagePage() {
             const meta = await readImageMeta(image.dataUrl);
             const nextImage = { id: image.id, dataUrl: image.dataUrl, durationMs: performance.now() - itemStartedAt, width: meta.width, height: meta.height, bytes: getDataUrlByteSize(image.dataUrl) };
             setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: updateResultAt(batch.results, index, { status: "success", image: nextImage }) } : batch));
+            updateGenerationJob(batchId, { progress: Math.min(generationCount, (useGenerationStore.getState().jobs.find((job) => job.id === batchId)?.progress || 0) + 1), message: `已完成 ${index + 1}/${generationCount} 张图片` });
             return nextImage;
         } catch (error) {
             setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: updateResultAt(batch.results, index, { status: "failed", error: error instanceof Error ? error.message : "生成失败" }) } : batch));
+            updateGenerationJob(batchId, { progress: Math.min(generationCount, (useGenerationStore.getState().jobs.find((job) => job.id === batchId)?.progress || 0) + 1), message: `已完成 ${index + 1}/${generationCount} 张图片` });
             throw error;
         }
     };
@@ -481,10 +514,11 @@ export default function ImagePage() {
                             <div>
                                 <h2 className="text-xl font-semibold">生成结果</h2>
                             </div>
-                            {running ? <Tag className="m-0 px-2 py-1">{activeJobs} 个任务生成中 · {formatDuration(elapsedMs)}</Tag> : null}
+                            {running || backgroundJobs.length ? <Tag className="m-0 px-2 py-1">{running ? `${activeJobs} 个任务生成中` : `${backgroundJobs.length} 个后台任务生成中`} · {formatDuration(elapsedMs)}</Tag> : null}
                         </div>
-                        {batches.length ? (
+                        {batches.length || backgroundJobs.length ? (
                             <div className="space-y-6">
+                                {!batches.length ? backgroundJobs.map((job) => <PendingImageCard key={job.id} />) : null}
                                 {[...batches].reverse().map((batch) => (
                                     <article key={batch.id} className="rounded-xl border border-stone-200 bg-background p-4 dark:border-stone-800">
                                         <div className="mb-3 flex items-start justify-between gap-3">

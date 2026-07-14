@@ -17,6 +17,7 @@ import { resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { createVideoGenerationTask, pollVideoGenerationTask, storeGeneratedVideo, type VideoGenerationTask } from "@/services/api/video";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
+import { useGenerationStore } from "@/stores/use-generation-store";
 import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { ReferenceImage } from "@/types/image";
@@ -67,11 +68,11 @@ type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => 
 
 const LOG_STORE_KEY = "infinite-canvas:video_generation_logs";
 const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+const activeVideoLogIds = new Set<string>();
 
 export default function VideoPage() {
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const activeLogIdsRef = useRef<Set<string>>(new Set());
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -98,6 +99,16 @@ export default function VideoPage() {
     const videoCommand = useWorkbenchAgentStore((state) => state.videoCommand);
     const clearVideoCommand = useWorkbenchAgentStore((state) => state.clearVideoCommand);
     const processedCommandRef = useRef(0);
+    const videoJobs = useGenerationStore((state) => state.jobs.filter((job) => job.workbench === "video"));
+    const backgroundJobs = videoJobs.filter((job) => job.status === "running");
+    const upsertGenerationJob = useGenerationStore((state) => state.upsertJob);
+    const updateGenerationJob = useGenerationStore((state) => state.updateJob);
+
+    useEffect(() => {
+        const latest = [...videoJobs].sort((a, b) => b.updatedAt - a.updatedAt).find((job) => job.status !== "running" && job.payload && typeof job.payload === "object");
+        const payload = latest?.payload as { video?: GeneratedVideo } | undefined;
+        if (payload?.video && !results.length) setResults([{ id: payload.video.id, status: "success", video: payload.video }]);
+    }, [results.length, videoJobs]);
 
     const model = effectiveConfig.videoModel || effectiveConfig.model;
     const canGenerate = Boolean(prompt.trim());
@@ -178,9 +189,11 @@ export default function VideoPage() {
         setResults([{ id: nanoid(), status: "pending" }]);
         const batchStartedAt = performance.now();
         setStartedAt(batchStartedAt);
+        const generationId = nanoid();
+        upsertGenerationJob({ id: generationId, workbench: "video", label: "视频创作台", status: "running", createdAt: Date.now(), progress: 0, total: 1, message: "正在创建视频任务" });
         try {
             const task = await createVideoGenerationTask(snapshot.config, snapshot.text, snapshot.references, snapshot.videoReferences, snapshot.audioReferences);
-            const log = buildLog({ prompt: snapshot.text, model, config: snapshot.config, references: snapshot.references, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: 0, status: "生成中", task });
+            const log = { ...buildLog({ prompt: snapshot.text, model, config: snapshot.config, references: snapshot.references, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: 0, status: "生成中", task }), id: generationId };
             await saveLog(log);
             void pollGenerationLog(log, snapshot.config);
         } catch (error) {
@@ -188,6 +201,7 @@ export default function VideoPage() {
             setResults([{ id: nanoid(), status: "failed", error: errorMessage }]);
             await saveLog(buildLog({ prompt: snapshot.text, model, config: snapshot.config, references: snapshot.references, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: performance.now() - batchStartedAt, status: "失败", error: errorMessage }));
             message.error(errorMessage);
+            updateGenerationJob(generationId, { status: "failed", progress: 1, message: "视频任务创建失败", error: errorMessage });
             setRunning(false);
         }
     };
@@ -304,8 +318,8 @@ export default function VideoPage() {
     };
 
     const pollGenerationLog = async (log: GenerationLog, configOverride?: AiConfig) => {
-        if (!log.task || activeLogIdsRef.current.has(log.id)) return;
-        activeLogIdsRef.current.add(log.id);
+        if (!log.task || activeVideoLogIds.has(log.id)) return;
+        activeVideoLogIds.add(log.id);
         setRunning(true);
         setStartedAt((value) => value || performance.now());
         setResults((value) => (value.length ? value : [{ id: log.id, status: "pending" }]));
@@ -327,6 +341,7 @@ export default function VideoPage() {
                     };
                     setResults([{ id: nextVideo.id, status: "success", video: nextVideo }]);
                     await saveLog({ ...log, status: "成功", durationMs: nextVideo.durationMs, video: nextVideo, error: undefined });
+                    updateGenerationJob(log.id, { status: "success", progress: 1, message: "视频已生成", payload: { video: nextVideo } });
                     message.success("视频已生成");
                     return;
                 }
@@ -338,10 +353,11 @@ export default function VideoPage() {
             const errorMessage = error instanceof Error ? error.message : "生成失败";
             setResults([{ id: log.id, status: "failed", error: errorMessage }]);
             await saveLog({ ...log, status: "失败", durationMs: Date.now() - log.createdAt, error: errorMessage });
+            updateGenerationJob(log.id, { status: "failed", progress: 1, message: "视频生成失败", error: errorMessage });
             message.error(errorMessage);
         } finally {
-            activeLogIdsRef.current.delete(log.id);
-            if (!activeLogIdsRef.current.size) {
+            activeVideoLogIds.delete(log.id);
+            if (!activeVideoLogIds.size) {
                 setRunning(false);
                 setStartedAt(0);
             }
@@ -500,10 +516,11 @@ export default function VideoPage() {
                     <div className="thin-scrollbar rounded-lg border border-stone-200 bg-card p-4 shadow-sm dark:border-stone-800 lg:min-h-0 lg:overflow-y-auto lg:p-5">
                         <div className="mb-4 flex items-center justify-between gap-3">
                             <h2 className="text-xl font-semibold">生成结果</h2>
-                            {running ? <Tag className="m-0 px-2 py-1">等待 {formatDuration(elapsedMs)}</Tag> : null}
+                            {running || backgroundJobs.length ? <Tag className="m-0 px-2 py-1">{running ? "视频生成中" : `${backgroundJobs.length} 个后台任务生成中`} · {formatDuration(elapsedMs)}</Tag> : null}
                         </div>
-                        {results.length ? (
+                        {results.length || backgroundJobs.length ? (
                             <div className="grid gap-4">
+                                {!results.length ? backgroundJobs.map((job) => <PendingVideoCard key={job.id} />) : null}
                                 {results.map((result) => (result.status === "success" && result.video ? <ResultVideoCard key={result.id} video={result.video} onDownload={downloadVideo} onSaveAsset={saveResultToAssets} /> : result.status === "failed" ? <FailedVideoCard key={result.id} error={result.error || "生成失败"} onRetry={retryResult} /> : <PendingVideoCard key={result.id} />))}
                             </div>
                         ) : (

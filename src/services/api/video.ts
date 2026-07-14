@@ -74,7 +74,7 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
     const requestConfig = resolveModelRequestConfig(config, task.model);
     assertVideoConfig(requestConfig, requestConfig.model);
-    return task.provider === "seedance" ? pollSeedanceTask(requestConfig, task, options) : pollOpenAIVideoTask(requestConfig, task, options);
+    return task.provider === "seedance" ? pollSeedanceTask(requestConfig, task, options) : task.provider === "grok" ? pollGrokVideoTask(requestConfig, task, options) : pollOpenAIVideoTask(requestConfig, task, options);
 }
 
 export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
@@ -89,9 +89,9 @@ export async function storeGeneratedVideo(result: VideoGenerationResult): Promis
     throw new Error("视频接口没有返回可播放的视频");
 }
 
-async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions): Promise<VideoGenerationTask> {
+async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions, modelOverride?: string): Promise<VideoGenerationTask> {
     const body = new FormData();
-    body.append("model", modelOptionName(model));
+    body.append("model", modelOverride || modelOptionName(model));
     body.append("prompt", prompt);
     body.append("seconds", normalizeVideoSeconds(config.videoSeconds));
     if (normalizeVideoSize(config.size)) body.append("size", normalizeVideoSize(config.size)!);
@@ -203,13 +203,42 @@ function seedanceApiUrl(config: AiConfig, taskId?: string) {
 }
 
 async function createGrokVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions): Promise<VideoGenerationTask> {
-    const task = await createOpenAIVideoTask(config, model, prompt, references, options);
-    return { ...task, provider: "grok" };
+    const normalizedModel = normalizeGrokModel(model);
+    const task = await createOpenAIVideoTask(config, model, prompt, references, options, normalizedModel);
+    return { ...task, provider: "grok", model: normalizedModel };
 }
 
 function isGrokVideoModel(model: string) {
     return modelOptionName(model).toLowerCase().includes("grok");
 }
+
+function normalizeGrokModel(model: string) {
+    const name = modelOptionName(model).trim();
+    return /^grok-(?:video|imagine-video)$/i.test(name) ? "grok-imagine-video" : name;
+}
+
+async function pollGrokVideoTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
+    try {
+        const response = await axios.get<ApiEnvelope<VideoResponse> | Record<string, unknown>>(aiApiUrl(config, `/videos/${encodeURIComponent(task.id)}`), { headers: aiHeaders(config), signal: options?.signal });
+        const payload = unwrapVideoPayload(response.data);
+        const url = videoResultUrl(payload);
+        if (url) return { status: "completed", result: await videoResultFromUrl(url, options) };
+        const status = String(payload.status || "").toLowerCase();
+        if (["failed", "cancelled", "canceled", "expired"].includes(status)) return { status: "failed", error: readApiErrorMessage(payload.error?.message) || "Grok 视频生成失败" };
+        if (["completed", "succeeded", "success"].includes(status)) return { status: "failed", error: "Grok 任务完成但没有返回视频 URL" };
+        return { status: "pending" };
+    } catch (error) {
+        throw new Error(readAxiosError(error, "Grok 视频任务查询失败"));
+    }
+}
+
+function unwrapVideoPayload(payload: unknown): VideoResponse {
+    const root = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+    if (root.code !== undefined && !isSuccessfulCode(root.code)) throw new Error(readApiErrorMessage(payload) || "Grok 接口请求失败");
+    const candidate = root.data && typeof root.data === "object" ? root.data : root.result && typeof root.result === "object" ? root.result : root;
+    return candidate as VideoResponse;
+}
+
 
 function seedanceApiUrls(config: AiConfig, taskId?: string) {
     if (config.apiFormat === "bytedance") {
