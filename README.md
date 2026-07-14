@@ -1,5 +1,6 @@
 <ul>
   <li>二改无限画布</li>
+    <li>官网:https://canvas.ikui.cn/
   <li>里面的api地址我是写了固定值的 用于我自己的中转程序</li>
   <li><img width="1912" height="956" alt="image" src="https://github.com/user-attachments/assets/7b5873b0-d0eb-42e3-b883-12a9ebd8f42e" /></li>
   <li>修改的话在\src\stores\use-config-store</li>
