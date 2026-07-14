@@ -25,7 +25,7 @@ import {
     WandSparkles,
     X,
 } from "lucide-react";
-import { App, Button, Input, Modal, Tabs, Tooltip, Tour, type TourProps } from "antd";
+import { App, Button, Image, Input, Modal, Tabs, Tooltip, Tour, type TourProps } from "antd";
 import { saveAs } from "file-saver";
 import { nanoid } from "nanoid";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,7 +54,7 @@ import {
 import { createZip } from "@/lib/zip";
 import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
 import { imageToDataUrl, resolveImageUrl, uploadImage } from "@/services/image-storage";
-import { allCommerceRoles, type CommercePrompt, type CommerceResult, type CommerceRole, useCommerceStore } from "@/stores/use-commerce-store";
+import { allCommerceRoles, type CommerceHistory, type CommercePrompt, type CommerceResult, type CommerceRole, useCommerceStore } from "@/stores/use-commerce-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
@@ -104,6 +104,10 @@ export default function CommercePage() {
     const setKitVariants = useCommerceStore((state) => state.setKitVariants);
     const results = useCommerceStore((state) => state.results);
     const setResults = useCommerceStore((state) => state.setResults);
+    const history = useCommerceStore((state) => state.history || []);
+    const addHistory = useCommerceStore((state) => state.addHistory);
+    const setHistory = useCommerceStore((state) => state.setHistory);
+    const removeHistory = useCommerceStore((state) => state.removeHistory);
     const addAsset = useAssetStore((state) => state.addAsset);
     const roles = useMemo(() => allCommerceRoles(customRoles), [customRoles]);
     const selectedRole = roles.find((role) => role.id === selectedRoleId) || roles[0];
@@ -112,9 +116,9 @@ export default function CommercePage() {
     const [specEditorOpen, setSpecEditorOpen] = useState(false);
     const [promptRunning, setPromptRunning] = useState(false);
     const [aiWriting, setAiWriting] = useState(false);
-    const [imageRunning, setImageRunning] = useState(false);
+    const [pendingJobs, setPendingJobs] = useState<Array<{ id: string; mode: "single" | "kit"; labels: string[] }>>([]);
     const [generationMode, setGenerationMode] = useState<"single" | "kit" | null>(null);
-    const [pendingKitVariants, setPendingKitVariants] = useState<CommerceKitVariant[]>([]);
+    const [previewImage, setPreviewImage] = useState<CommerceResult | null>(null);
     const [productUploading, setProductUploading] = useState(false);
     const [pendingProductImage, setPendingProductImage] = useState<ReferenceImage | null>(null);
     const [tourOpen, setTourOpen] = useState(false);
@@ -125,6 +129,9 @@ export default function CommercePage() {
     const supportedRatios = useMemo(() => supportedCommerceRatios(effectiveConfig, imageModel), [effectiveConfig, imageModel]);
     const ratioSelectOptions = useMemo(() => commerceRatioOptions.map((option) => ({ ...option, disabled: !supportedRatios.includes(option.value), hint: supportedRatios.includes(option.value) ? undefined : "当前模型不支持" })), [supportedRatios]);
     const countSelectOptions = useMemo(() => [1, 2, 3, 4].map((count) => ({ value: String(count), label: `${count} 张` })), []);
+    const imageRunning = pendingJobs.length > 0;
+    const hasSingleJob = pendingJobs.some((job) => job.mode === "single");
+    const hasKitJob = pendingJobs.some((job) => job.mode === "kit");
 
     useEffect(() => {
         if (!commerceHydrated || window.localStorage.getItem(COMMERCE_TOUR_KEY)) return;
@@ -189,6 +196,9 @@ export default function CommercePage() {
         }
         if (results.some((result) => result.storageKey && !result.dataUrl)) {
             void Promise.all(results.map(async (result) => ({ ...result, dataUrl: result.storageKey ? await resolveImageUrl(result.storageKey, result.dataUrl) : result.dataUrl }))).then(setResults);
+        }
+        if (history.some((entry) => entry.results.some((result) => result.storageKey && !result.dataUrl))) {
+            void Promise.all(history.map(async (entry) => ({ ...entry, results: await Promise.all(entry.results.map(async (result) => ({ ...result, dataUrl: result.storageKey ? await resolveImageUrl(result.storageKey, result.dataUrl) : result.dataUrl }))) }))).then(setHistory);
         }
     }, [commerceHydrated]);
 
@@ -346,9 +356,9 @@ export default function CommercePage() {
             openConfigDialog(true, "models");
             return;
         }
-        setImageRunning(true);
+        const jobId = nanoid();
+        setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "single", labels: [commerceOutputLabel(outputType)] }]);
         setGenerationMode("single");
-        setPendingKitVariants([]);
         const requestConfig = { ...effectiveConfig, model: imageModel, imageModel, size: requestSize };
         try {
             const generated = productImage
@@ -360,12 +370,13 @@ export default function CommercePage() {
                     return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: outputType, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt };
                 }),
             );
-            setResults(storedResults);
+            setResults((items) => [...items, ...storedResults]);
+            addHistory({ id: jobId, createdAt: Date.now(), title: `${commerceOutputLabel(outputType)} · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt, results: storedResults });
             message.success(`已生成并保存 ${storedResults.length} 张商品图`);
         } catch (error) {
             message.error(error instanceof Error ? error.message : "商品图生成失败");
         } finally {
-            setImageRunning(false);
+            setPendingJobs((jobs) => jobs.filter((job) => job.id !== jobId));
             setGenerationMode(null);
         }
     };
@@ -387,10 +398,9 @@ export default function CommercePage() {
             return;
         }
 
-        setImageRunning(true);
+        const jobId = nanoid();
+        setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "kit", labels: selectedVariants.map((item) => item.value) }]);
         setGenerationMode("kit");
-        setPendingKitVariants(selectedVariants.map((item) => item.value));
-        setResults([]);
 
         const tasks = selectedVariants.map(async (spec) => {
             const actualRatio = resolveCommerceRatio(effectiveConfig, imageModel, spec.ratio);
@@ -413,9 +423,9 @@ export default function CommercePage() {
         const settled = await Promise.allSettled(tasks);
         const completed = settled.flatMap((item) => (item.status === "fulfilled" ? [item.value] : []));
         const failures = settled.flatMap((item, index) => (item.status === "rejected" ? [`${selectedVariants[index].label}：${item.reason instanceof Error ? item.reason.message : "生成失败"}`] : []));
-        setResults(completed);
-        setPendingKitVariants([]);
-        setImageRunning(false);
+        setResults((items) => [...items, ...completed]);
+        if (completed.length) addHistory({ id: jobId, createdAt: Date.now(), title: `整套素材 · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt: basePrompt, results: completed });
+        setPendingJobs((jobs) => jobs.filter((job) => job.id !== jobId));
         setGenerationMode(null);
         if (completed.length) message.success(`已完成 ${completed.length} 种规格素材`);
         if (failures.length) message.warning(`${failures.length} 种规格未完成：${failures.join("；")}`);
@@ -556,8 +566,8 @@ export default function CommercePage() {
                     <button type="button" className="commerce-secondary-action" disabled={promptRunning || productUploading} onClick={() => void generatePrompt()}>
                         {promptRunning ? <LoaderCircle className="size-5 animate-spin" /> : <Sparkles className="size-5" />} AI 整理提示词
                     </button>
-                    <button type="button" className="commerce-primary-action" disabled={imageRunning || productUploading} onClick={() => void generateImages()}>
-                        {imageRunning && generationMode === "single" ? <LoaderCircle className="size-5 animate-spin" /> : <WandSparkles className="size-5" />} {imageRunning && generationMode === "single" ? "正在生成" : `生成${commerceOutputLabel(outputType)}`}
+                    <button type="button" className="commerce-primary-action" disabled={productUploading} onClick={() => void generateImages()}>
+                        {hasSingleJob ? <LoaderCircle className="size-5 animate-spin" /> : <WandSparkles className="size-5" />} {hasSingleJob ? "继续生成中" : `生成${commerceOutputLabel(outputType)}`}
                     </button>
                 </div>
 
@@ -574,9 +584,9 @@ export default function CommercePage() {
                             </button>
                         ))}
                     </div>
-                    <button type="button" className="commerce-kit-generate" disabled={imageRunning || productUploading || !kitVariants.length} onClick={() => void generateMaterialKit()}>
-                        {imageRunning && generationMode === "kit" ? <LoaderCircle className="size-5 animate-spin" /> : <LayoutTemplate className="size-5" />}
-                        {imageRunning && generationMode === "kit" ? "正在生成多规格素材" : `生成整套素材（${kitVariants.length} 种）`}
+                    <button type="button" className="commerce-kit-generate" disabled={productUploading || !kitVariants.length} onClick={() => void generateMaterialKit()}>
+                        {hasKitJob ? <LoaderCircle className="size-5 animate-spin" /> : <LayoutTemplate className="size-5" />}
+                        {hasKitJob ? "套图生成中，可继续发送" : `生成整套素材（${kitVariants.length} 种）`}
                     </button>
                 </section>
 
@@ -593,18 +603,17 @@ export default function CommercePage() {
                     </section>
                 ) : null}
 
-                {imageRunning || results.length ? (
+                {imageRunning || results.length || history.length ? (
                     <section className="commerce-results">
                         <div className="commerce-section-title commerce-results-title">
                             <div><ImageIcon className="size-5" /><span>生成结果</span>{results.length ? <b>{results.length} 张</b> : null}</div>
                             {results.length ? <div className="commerce-result-batch-actions"><button type="button" onClick={() => void saveAllResults()}><FolderPlus className="size-4" />全部存入素材</button><button type="button" onClick={() => void downloadAllResults()}><FileArchive className="size-4" />下载整套 ZIP</button></div> : null}
                         </div>
                         <div className="commerce-result-grid">
-                            {imageRunning && generationMode === "single" ? Array.from({ length: Math.max(1, Number(config.count) || 1) }, (_, index) => <div className="commerce-result-loading" key={index}><LoaderCircle className="size-7 animate-spin" /><span>正在创作{commerceOutputLabel(outputType)}</span></div>) : null}
-                            {imageRunning && generationMode === "kit" ? pendingKitVariants.map((variant) => <div className="commerce-result-loading" key={variant}><LoaderCircle className="size-7 animate-spin" /><span>正在生成{commerceMaterialLabel(variant)}</span></div>) : null}
+                            {pendingJobs.flatMap((job) => job.labels.map((label, index) => <div className="commerce-result-loading" key={`${job.id}-${label}-${index}`}><LoaderCircle className="size-7 animate-spin" /><span>正在生成{commerceMaterialLabel(label as CommerceKitVariant) || label}</span></div>))}
                             {results.map((result, index) => (
                                 <article className="commerce-result-card" key={result.id}>
-                                    <img src={result.dataUrl} alt={`电商生成结果 ${index + 1}`} />
+                                    <button type="button" className="block size-full cursor-zoom-in" onClick={() => setPreviewImage(result)} aria-label="预览图片"><img src={result.dataUrl} alt={`电商生成结果 ${index + 1}`} /></button>
                                     <span className="commerce-result-kind">{commerceMaterialLabel(result.materialType)} · {result.size || config.size}</span>
                                     <div className="commerce-result-tools">
                                         <Tooltip title="下载"><button type="button" aria-label="下载" onClick={() => saveAs(result.dataUrl, `aikart-${commerceMaterialLabel(result.materialType)}-${index + 1}.png`)}><Download className="size-4" /></button></Tooltip>
@@ -614,6 +623,19 @@ export default function CommercePage() {
                                 </article>
                             ))}
                         </div>
+                        {history.length ? (
+                            <div className="mt-6 border-t border-stone-200 pt-5 dark:border-stone-800">
+                                <div className="mb-3 flex items-center justify-between"><strong className="text-sm">历史结果</strong><span className="text-xs text-stone-500">刷新后仍保留最近 {history.length} 批</span></div>
+                                <div className="space-y-3">
+                                    {history.map((entry: CommerceHistory) => (
+                                        <div key={entry.id} className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                                            <div className="mb-2 flex items-start justify-between gap-3"><div className="min-w-0"><strong className="text-sm">{entry.title}</strong><p className="mt-1 line-clamp-2 text-xs text-stone-500">{entry.prompt}</p></div><button type="button" className="text-xs text-stone-500 hover:text-stone-900 dark:hover:text-white" onClick={() => removeHistory(entry.id)}>删除</button></div>
+                                            <div className="flex gap-2 overflow-x-auto">{entry.results.map((result, index) => <button type="button" key={result.id} className="size-16 shrink-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-700" onClick={() => setPreviewImage(result)} aria-label={`预览历史结果 ${index + 1}`}><img src={result.dataUrl} alt="" className="size-full object-cover" /></button>)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                     </section>
                 ) : null}
             </div>
@@ -649,6 +671,9 @@ export default function CommercePage() {
                 onUse={usePrompt}
                 onCopy={copyPrompt}
             />
+            <Modal open={Boolean(previewImage)} footer={null} title="图片预览" onCancel={() => setPreviewImage(null)} width={900} centered>
+                {previewImage ? <Image src={previewImage.dataUrl} alt="生成结果预览" preview={false} style={{ display: "block", maxHeight: "70vh", width: "100%", objectFit: "contain" }} /> : null}
+            </Modal>
             <Tour
                 open={tourOpen}
                 current={tourCurrent}

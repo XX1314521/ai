@@ -22,6 +22,14 @@ export type CommerceResult = {
     prompt?: string;
 };
 
+export type CommerceHistory = {
+    id: string;
+    createdAt: number;
+    title: string;
+    prompt: string;
+    results: CommerceResult[];
+};
+
 export type CommerceRole = {
     id: string;
     name: string;
@@ -33,20 +41,34 @@ export type CommerceRole = {
     builtIn?: boolean;
 };
 
+const commerceDetailImageSkill = [
+    "已启用 SkillHub 技能：scdsxqt（生成电商详情图）。",
+    "工作职责：分析参考商品图，提取品牌、品类、规格、卖点、主色、材质、目标人群和包装亮点；生成主图、详情图、场景图和跨境电商素材的可执行提示词。",
+    "硬性规则：完整还原商品外观、包装、Logo、颜色、结构和原有文字；保持材质真实、光影统一、版式整洁；根据素材类型匹配比例：主图 1:1，详情图 2:3，广告图 9:16，场景图 1:1。",
+    "输出规则：中文方案要包含构图、商品位置、光线、材质和文案布局；英文生图提示词必须只使用英文，不得混入中文、标题、解释或 Markdown；主动消除重复句、重复标签和无效描述。",
+].join("\n");
+
+const marketingImageSkill = [
+    "已启用 SkillHub 技能：hanis-marketing-image（营销图 UI 设计专家）。",
+    "工作职责：为电商营销图、详情页 Banner、活动海报、社媒配图和品牌宣传图设计统一的视觉方案与版式。",
+    "设计规则：先判断平台和场景，再匹配尺寸与布局；产品主图优先 1:1，详情 Banner 使用横向版式，营销海报和社媒封面使用 3:4、9:16 或平台对应规格；明确主体、背景、前景、色彩、CTA 和信息层级。",
+    "默认使用中文文案，除非用户明确指定其他语言；保持品牌色、Logo 和商品真实性；避免杂乱排版、低对比度、乱码和重复信息。只输出设计规则和提示词，不调用技能包内的外部 API 或脚本。",
+].join("\n");
+
 export const builtInCommerceRoles: CommerceRole[] = [
     {
         id: "poster-master",
-        name: "电商海报设计大师",
-        summary: "商品主图、活动海报和详情页视觉策划",
-        systemPrompt: "你是一位专业电商视觉总监，擅长淘宝、天猫、京东商品主图与营销海报。输出必须突出真实商品、清晰卖点、商业构图、平台转化率和可执行的摄影灯光细节。",
+        name: "电商详情图专家",
+        summary: "商品识别、主图详情图与多规格电商素材",
+        systemPrompt: `你是一位专业电商详情图专家，负责把商品参考图和卖点转化为可直接执行的主图、详情图、场景图与跨境电商提示词。\n${commerceDetailImageSkill}`,
         accent: "#ef6f91",
         builtIn: true,
     },
     {
         id: "creative-master",
-        name: "图片创意大师",
-        summary: "概念创意、视觉冲击和品牌记忆点",
-        systemPrompt: "你是一位商业广告创意总监，擅长从产品卖点提炼视觉概念。方案要新颖但可落地，兼顾品牌识别、画面层级和商品真实性。",
+        name: "营销图 UI 设计专家",
+        summary: "营销海报、详情 Banner 与平台视觉版式",
+        systemPrompt: `你是一位营销图 UI 设计专家，负责为商品和品牌设计可投放的营销图、详情 Banner、活动海报和社媒配图。\n${marketingImageSkill}`,
         accent: "#f59e62",
         builtIn: true,
     },
@@ -97,6 +119,7 @@ type CommerceStore = {
     textLanguage: CommerceTextLanguage;
     kitVariants: CommerceKitVariant[];
     results: CommerceResult[];
+    history: CommerceHistory[];
     addRole: (role: Omit<CommerceRole, "id" | "builtIn">) => string;
     updateRole: (id: string, patch: Partial<Omit<CommerceRole, "id" | "builtIn">>) => void;
     removeRole: (id: string) => void;
@@ -110,6 +133,10 @@ type CommerceStore = {
     setTextLanguage: (textLanguage: CommerceTextLanguage) => void;
     setKitVariants: (kitVariants: CommerceKitVariant[]) => void;
     setResults: (results: CommerceResult[] | ((results: CommerceResult[]) => CommerceResult[])) => void;
+    addHistory: (entry: CommerceHistory) => void;
+    setHistory: (history: CommerceHistory[]) => void;
+    removeHistory: (id: string) => void;
+    clearHistory: () => void;
     clearSession: () => void;
 };
 
@@ -130,6 +157,7 @@ export const useCommerceStore = create<CommerceStore>()(
             textLanguage: "none",
             kitVariants: ["scene", "selling-point", "close-up", "a-plus"],
             results: [],
+            history: [],
             addRole: (role) => {
                 const id = nanoid();
                 set((state) => ({ customRoles: [...state.customRoles, { ...role, id, builtIn: false }], selectedRoleId: id }));
@@ -142,15 +170,19 @@ export const useCommerceStore = create<CommerceStore>()(
                     selectedRoleId: state.selectedRoleId === id ? builtInCommerceRoles[0].id : state.selectedRoleId,
                 })),
             selectRole: (selectedRoleId) => set({ selectedRoleId }),
-            setDescription: (description) => set({ description }),
-            setProductImage: (productImage) => set({ productImage }),
+            setDescription: (description) => set({ description, promptResult: null }),
+            setProductImage: (productImage) => set({ productImage, promptResult: null }),
             setPromptResult: (promptResult) => set({ promptResult }),
             setActivePrompt: (activePrompt) => set({ activePrompt }),
-            setOutputType: (outputType) => set({ outputType }),
-            setPlatform: (platform) => set({ platform }),
-            setTextLanguage: (textLanguage) => set({ textLanguage }),
+            setOutputType: (outputType) => set({ outputType, promptResult: null }),
+            setPlatform: (platform) => set({ platform, promptResult: null }),
+            setTextLanguage: (textLanguage) => set({ textLanguage, promptResult: null }),
             setKitVariants: (kitVariants) => set({ kitVariants }),
             setResults: (results) => set((state) => ({ results: typeof results === "function" ? results(state.results) : results })),
+            addHistory: (entry) => set((state) => ({ history: [entry, ...state.history.filter((item) => item.id !== entry.id)].slice(0, 30) })),
+            setHistory: (history) => set({ history }),
+            removeHistory: (id) => set((state) => ({ history: state.history.filter((item) => item.id !== id) })),
+            clearHistory: () => set({ history: [] }),
             clearSession: () => set({ description: "", productImage: null, promptResult: null, activePrompt: "chinese", outputType: "main", platform: "auto", textLanguage: "none", kitVariants: ["scene", "selling-point", "close-up", "a-plus"], results: [] }),
         }),
         {
@@ -167,6 +199,7 @@ export const useCommerceStore = create<CommerceStore>()(
                 textLanguage: state.textLanguage,
                 kitVariants: state.kitVariants,
                 results: state.results.map((result) => ({ ...result, dataUrl: persistentImageUrl(result.dataUrl, result.storageKey) })),
+                history: state.history.map((entry) => ({ ...entry, results: entry.results.map((result) => ({ ...result, dataUrl: persistentImageUrl(result.dataUrl, result.storageKey) })) })),
             }),
             onRehydrateStorage: () => () => {
                 useCommerceStore.setState({ hydrated: true });

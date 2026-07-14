@@ -38,6 +38,16 @@ type GenerationResult = {
     error?: string;
 };
 
+type GenerationBatch = {
+    id: string;
+    createdAt: number;
+    prompt: string;
+    references: ReferenceImage[];
+    model: string;
+    config: AiConfig;
+    results: GenerationResult[];
+};
+
 type GenerationLog = {
     id: string;
     createdAt: number;
@@ -77,9 +87,9 @@ export default function ImagePage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const [prompt, setPrompt] = useState("");
     const [references, setReferences] = useState<ReferenceImage[]>([]);
-    const [results, setResults] = useState<GenerationResult[]>([]);
+    const [batches, setBatches] = useState<GenerationBatch[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
-    const [running, setRunning] = useState(false);
+    const [activeJobs, setActiveJobs] = useState(0);
     const [logsOpen, setLogsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
@@ -97,6 +107,7 @@ export default function ImagePage() {
     const model = effectiveConfig.imageModel || effectiveConfig.model;
     const canGenerate = Boolean(prompt.trim());
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
+    const running = activeJobs > 0;
 
     useEffect(() => {
         if (!running || !startedAt) return;
@@ -156,13 +167,16 @@ export default function ImagePage() {
         if (!snapshot) return;
 
         setElapsedMs(0);
-        setRunning(true);
         setPreviewLog(null);
-        setResults(Array.from({ length: generationCount }, () => ({ id: nanoid(), status: "pending" })));
+        const batchId = nanoid();
+        const batchResults = Array.from({ length: generationCount }, () => ({ id: nanoid(), status: "pending" as const }));
+        setBatches((value) => [...value, { id: batchId, createdAt: Date.now(), prompt: snapshot.text, references: snapshot.references, model, config: snapshot.config, results: batchResults }]);
+        setPrompt("");
+        setActiveJobs((value) => value + 1);
         const batchStartedAt = performance.now();
         setStartedAt(batchStartedAt);
 
-        const tasks = Array.from({ length: generationCount }, (_, index) => runGenerationSlot(index, snapshot));
+        const tasks = Array.from({ length: generationCount }, (_, index) => runGenerationSlot(batchId, index, snapshot));
 
         const result = await Promise.allSettled(tasks);
         const successImages = result.filter((item): item is PromiseFulfilledResult<GeneratedImage> => item.status === "fulfilled").map((item) => item.value);
@@ -177,6 +191,10 @@ export default function ImagePage() {
                     return { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
                 }),
             );
+            setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: batch.results.map((item) => {
+                const image = logImages.find((entry) => entry.id === item.image?.id);
+                return image ? { ...item, image } : item;
+            }) } : batch));
             saveLog(
                 buildLog({
                     prompt: text,
@@ -192,7 +210,7 @@ export default function ImagePage() {
             );
             successCount ? message.success("图片已生成") : message.error(failed?.reason instanceof Error ? failed.reason.message : "生成失败");
         } finally {
-            setRunning(false);
+            setActiveJobs((value) => Math.max(0, value - 1));
         }
     };
 
@@ -202,7 +220,7 @@ export default function ImagePage() {
         processedCommandRef.current = imageCommand.nonce;
         clearImageCommand();
         if (typeof imageCommand.prompt === "string") setPrompt(imageCommand.prompt);
-        if (imageCommand.run && !running) setAutoRunToken((value) => value + 1);
+        if (imageCommand.run) setAutoRunToken((value) => value + 1);
     }, [imageCommand, clearImageCommand, running]);
 
     useEffect(() => {
@@ -221,7 +239,7 @@ export default function ImagePage() {
         message.success("已加入参考图");
     };
 
-    const saveResultToAssets = async (image: GeneratedImage, index: number) => {
+    const saveResultToAssets = async (image: GeneratedImage, index: number, sourcePrompt: string) => {
         const stored = await uploadImage(image.dataUrl);
         addAsset({
             kind: "image",
@@ -230,7 +248,7 @@ export default function ImagePage() {
             tags: [],
             source: "生图工作台",
             data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
-            metadata: { source: "image-page", prompt },
+            metadata: { source: "image-page", prompt: sourcePrompt },
         });
         message.success("已加入我的素材");
     };
@@ -250,7 +268,7 @@ export default function ImagePage() {
     const createSession = () => {
         setPrompt("");
         setReferences([]);
-        setResults([]);
+        setBatches([]);
         setElapsedMs(0);
         setStartedAt(0);
         setSelectedLogIds([]);
@@ -262,7 +280,7 @@ export default function ImagePage() {
         void Promise.all([deleteStoredImages(imageKeys), ...selectedLogIds.map((id) => logStore.removeItem(id))]).then(refreshLogs);
         if (previewLog && selectedLogIds.includes(previewLog.id)) {
             setPreviewLog(null);
-            setResults([]);
+            setBatches((value) => value.filter((batch) => !selectedLogIds.includes(batch.id)));
         }
         setSelectedLogIds([]);
         setDeleteConfirmOpen(false);
@@ -283,7 +301,7 @@ export default function ImagePage() {
         if (log.config.quality) updateConfig("quality", log.config.quality);
         if (log.config.size) updateConfig("size", log.config.size);
         if (log.config.count) updateConfig("count", log.config.count);
-        setResults(log.images.map((image) => ({ id: image.id, status: "success", image })));
+        setBatches([{ id: log.id, createdAt: log.createdAt, prompt: log.prompt, references: log.references || [], model: log.model, config: { ...effectiveConfig, ...log.config }, results: log.images.map((image) => ({ id: image.id, status: "success", image })) }]);
     };
 
     const buildRequestSnapshot = () => {
@@ -300,7 +318,7 @@ export default function ImagePage() {
         return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references] };
     };
 
-    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[] }) => {
+    const runGenerationSlot = async (batchId: string, index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[] }) => {
         const itemStartedAt = performance.now();
         try {
             const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references) : await requestGeneration(snapshot.config, snapshot.text);
@@ -308,25 +326,26 @@ export default function ImagePage() {
             if (!image) throw new Error("接口没有返回图片");
             const meta = await readImageMeta(image.dataUrl);
             const nextImage = { id: image.id, dataUrl: image.dataUrl, durationMs: performance.now() - itemStartedAt, width: meta.width, height: meta.height, bytes: getDataUrlByteSize(image.dataUrl) };
-            setResults((value) => updateResultAt(value, index, { status: "success", image: nextImage }));
+            setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: updateResultAt(batch.results, index, { status: "success", image: nextImage }) } : batch));
             return nextImage;
         } catch (error) {
-            setResults((value) => updateResultAt(value, index, { status: "failed", error: error instanceof Error ? error.message : "生成失败" }));
+            setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: updateResultAt(batch.results, index, { status: "failed", error: error instanceof Error ? error.message : "生成失败" }) } : batch));
             throw error;
         }
     };
 
-    const retryResult = async (index: number) => {
-        const snapshot = buildRequestSnapshot();
+    const retryResult = async (batch: GenerationBatch, index: number) => {
+        const snapshot = { text: batch.prompt, config: batch.config, references: batch.references };
         if (!snapshot) return;
         setPreviewLog(null);
-        setResults((value) => updateResultAt(value, index, { status: "pending", error: undefined, image: undefined }));
+        setBatches((value) => value.map((item) => item.id === batch.id ? { ...item, results: updateResultAt(item.results, index, { status: "pending", error: undefined, image: undefined }) } : item));
+        setActiveJobs((value) => value + 1);
         const retryStartedAt = performance.now();
         try {
-            const image = await runGenerationSlot(index, snapshot);
+            const image = await runGenerationSlot(batch.id, index, snapshot);
             const stored = await uploadImage(image.dataUrl);
             const logImage = { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
-            setResults((value) => updateResultAt(value, index, { image: { ...image, dataUrl: stored.url, storageKey: stored.storageKey } }));
+            setBatches((value) => value.map((item) => item.id === batch.id ? { ...item, results: updateResultAt(item.results, index, { image: { ...image, dataUrl: stored.url, storageKey: stored.storageKey } }) } : item));
             saveLog(
                 buildLog({
                     prompt: snapshot.text,
@@ -343,6 +362,8 @@ export default function ImagePage() {
             message.success("重试成功");
         } catch {
             // runGenerationSlot 已经把结果状态更新为 failed
+        } finally {
+            setActiveJobs((value) => Math.max(0, value - 1));
         }
     };
 
@@ -449,7 +470,7 @@ export default function ImagePage() {
                         </div>
 
                         <div className="mt-auto pt-6">
-                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={() => void generate()}>
                                 开始生成
                             </Button>
                         </div>
@@ -460,19 +481,32 @@ export default function ImagePage() {
                             <div>
                                 <h2 className="text-xl font-semibold">生成结果</h2>
                             </div>
-                            {running ? <Tag className="m-0 px-2 py-1">等待 {formatDuration(elapsedMs)}</Tag> : null}
+                            {running ? <Tag className="m-0 px-2 py-1">{activeJobs} 个任务生成中 · {formatDuration(elapsedMs)}</Tag> : null}
                         </div>
-                        {results.length ? (
-                            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-                                {results.map((result, index) =>
-                                    result.status === "success" && result.image ? (
-                                        <ResultImageCard key={result.id} image={result.image} index={index} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
-                                    ) : result.status === "failed" ? (
-                                        <FailedImageCard key={result.id} error={result.error || "生成失败"} onRetry={() => retryResult(index)} />
-                                    ) : (
-                                        <PendingImageCard key={result.id} />
-                                    ),
-                                )}
+                        {batches.length ? (
+                            <div className="space-y-6">
+                                {[...batches].reverse().map((batch) => (
+                                    <article key={batch.id} className="rounded-xl border border-stone-200 bg-background p-4 dark:border-stone-800">
+                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="mb-1 text-xs text-stone-500 dark:text-stone-400">{new Date(batch.createdAt).toLocaleString("zh-CN", { hour12: false })} · {batch.model}</div>
+                                                <p className="line-clamp-3 text-sm leading-6 text-stone-700 dark:text-stone-200">{batch.prompt}</p>
+                                            </div>
+                                            <Tag className="m-0 shrink-0">{batch.results.filter((item) => item.status === "success").length}/{batch.results.length}</Tag>
+                                        </div>
+                                        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                                            {batch.results.map((result, index) =>
+                                                result.status === "success" && result.image ? (
+                                                    <ResultImageCard key={result.id} image={result.image} index={index} prompt={batch.prompt} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
+                                                ) : result.status === "failed" ? (
+                                                    <FailedImageCard key={result.id} error={result.error || "生成失败"} onRetry={() => void retryResult(batch, index)} />
+                                                ) : (
+                                                    <PendingImageCard key={result.id} />
+                                                ),
+                                            )}
+                                        </div>
+                                    </article>
+                                ))}
                             </div>
                         ) : (
                             <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-stone-300 text-center dark:border-stone-700 lg:min-h-[560px]">
@@ -538,19 +572,23 @@ function GenerationSettings({ config, model, updateConfig, openConfigDialog }: {
 function ResultImageCard({
     image,
     index,
+    prompt,
     onEdit,
     onDownload,
     onSaveAsset,
 }: {
     image: GeneratedImage;
     index: number;
+    prompt: string;
     onEdit: (image: GeneratedImage, index: number) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
+    onSaveAsset: (image: GeneratedImage, index: number, prompt: string) => void;
 }) {
     return (
         <div className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
-            <Image src={image.dataUrl} alt={`生成结果 ${index + 1}`} className="aspect-square object-cover" />
+            <Image.PreviewGroup>
+                <Image src={image.dataUrl} alt={`生成结果 ${index + 1}`} className="aspect-square cursor-zoom-in object-cover" preview={{ mask: "点击预览" }} />
+            </Image.PreviewGroup>
             <div className="space-y-2 border-t border-stone-200 px-3 py-2.5 dark:border-stone-800">
                 <div className="flex min-w-0 gap-x-2 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
                     <span>
@@ -561,7 +599,7 @@ function ResultImageCard({
                 </div>
                 <div className="grid min-w-0 grid-cols-3 gap-2">
                     <Tooltip title="添加到素材">
-                        <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)}>
+                        <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index, prompt)}>
                             添加到素材
                         </Button>
                     </Tooltip>
