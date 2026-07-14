@@ -214,7 +214,7 @@ export const useConfigStore = create<ConfigStore>()(
                         apiFormat: normalizeApiFormat(config.apiFormat),
                         channels,
                         models,
-                        imageModel: normalizeModelOptionValue(config.imageModel || config.model, channels),
+                        imageModel: resolveCapabilityModel({ ...config, channels, models } as AiConfig, "image", config.imageModel || config.model),
                         videoModel: normalizeModelOptionValue(config.videoModel || "grok-imagine-video", channels),
                         textModel: normalizeModelOptionValue(config.textModel || config.model, channels),
                         audioModel: normalizeModelOptionValue(config.audioModel || defaultConfig.audioModel, channels),
@@ -227,7 +227,7 @@ export const useConfigStore = create<ConfigStore>()(
                         videoGenerateAudio: config.videoGenerateAudio || "true",
                         videoWatermark: config.videoWatermark || "false",
                         canvasImageCount: config.canvasImageCount || "3",
-                        imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels, channels) : filterModelsByCapability(models, "image"),
+                        imageModels: filterModelsByCapability(Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels, channels) : models, "image"),
                         videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels, channels) : filterModelsByCapability(models, "video"),
                         textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels, channels) : filterModelsByCapability(models, "text"),
                         audioModels: Array.isArray(persistedConfig.audioModels) ? normalizeModelList(config.audioModels, channels) : filterModelsByCapability(models, "audio"),
@@ -321,6 +321,14 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         apiKey: channel.apiKey,
         apiFormat: seedanceModel ? "bytedance" : channel.apiFormat,
     };
+}
+
+export function resolveCapabilityModel(config: AiConfig, capability: ModelCapability, preferred = "") {
+    const configuredModels = selectableModelsByCapability(config, capability);
+    const candidates = [preferred, ...configuredModels, ...config.models]
+        .map((model) => normalizeModelOptionValue(model, config.channels))
+        .filter((model) => Boolean(model) && modelMatchesCapability(model, capability));
+    return candidates[0] || "";
 }
 
 function normalizeChannels(config: AiConfig) {

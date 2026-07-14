@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { buildApiUrl, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, resolveCapabilityModel, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -649,7 +649,9 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
 }
 
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
-    const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    const imageModel = resolveCapabilityModel(config, "image", config.imageModel || config.model);
+    if (!imageModel) throw new Error("当前没有配置可用的图像模型，请到配置 > 模型中选择 Gemini Imagen 或其他图像模型");
+    const requestConfig = resolveModelRequestConfig(config, imageModel);
     if (requestConfig.apiFormat === "bytedance") throw new Error("字节跳动 Contents Generations 当前用于视频创作，请在视频工作台中使用");
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     if (requestConfig.apiFormat === "gemini") {
@@ -686,7 +688,9 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
 }
 
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
-    const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    const imageModel = resolveCapabilityModel(config, "image", config.imageModel || config.model);
+    if (!imageModel) throw new Error("当前没有配置可用的图像模型，请到配置 > 模型中选择 Gemini Imagen 或其他图像模型");
+    const requestConfig = resolveModelRequestConfig(config, imageModel);
     if (requestConfig.apiFormat === "bytedance") throw new Error("字节跳动 Contents Generations 当前用于视频创作，不支持生图编辑");
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
