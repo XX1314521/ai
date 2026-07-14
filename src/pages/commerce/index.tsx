@@ -123,6 +123,7 @@ export default function CommercePage() {
     const [pendingProductImage, setPendingProductImage] = useState<ReferenceImage | null>(null);
     const [tourOpen, setTourOpen] = useState(false);
     const [tourCurrent, setTourCurrent] = useState(0);
+    const latestVisibleJobRef = useRef("");
 
     const imageModel = effectiveConfig.imageModel || effectiveConfig.model;
     const textModel = effectiveConfig.textModel || effectiveConfig.model;
@@ -189,10 +190,8 @@ export default function CommercePage() {
 
     useEffect(() => {
         if (!commerceHydrated) return;
-        if (productImage?.storageKey) {
-            void resolveImageUrl(productImage.storageKey, productImage.dataUrl).then((dataUrl) => {
-                if (dataUrl && dataUrl !== productImage.dataUrl) setProductImage({ ...productImage, dataUrl });
-            });
+        if (productImage.some((image) => image.storageKey && !image.dataUrl)) {
+            void Promise.all(productImage.map(async (image) => ({ ...image, dataUrl: image.storageKey ? await resolveImageUrl(image.storageKey, image.dataUrl) : image.dataUrl }))).then(setProductImage);
         }
         if (results.some((result) => result.storageKey && !result.dataUrl)) {
             void Promise.all(results.map(async (result) => ({ ...result, dataUrl: result.storageKey ? await resolveImageUrl(result.storageKey, result.dataUrl) : result.dataUrl }))).then(setResults);
@@ -203,22 +202,25 @@ export default function CommercePage() {
     }, [commerceHydrated]);
 
     const uploadProduct = async (files?: FileList | null) => {
-        const file = Array.from(files || []).find(isImageFile);
-        if (!file) {
+        const selectedFiles = Array.from(files || []).filter(isImageFile);
+        if (!selectedFiles.length) {
             message.warning("请选择 JPG、PNG、WebP 等图片文件");
             if (productInputRef.current) productInputRef.current.value = "";
             return;
         }
 
-        const previewUrl = URL.createObjectURL(file);
-        setPendingProductImage({ id: nanoid(), name: file.name, type: file.type || "image/*", dataUrl: previewUrl });
+        const previewUrl = URL.createObjectURL(selectedFiles[0]);
+        setPendingProductImage({ id: nanoid(), name: selectedFiles.length > 1 ? `${selectedFiles[0].name} 等 ${selectedFiles.length} 张` : selectedFiles[0].name, type: selectedFiles[0].type || "image/*", dataUrl: previewUrl });
         setPromptResult(null);
         setProductUploading(true);
 
         try {
-            const stored = await uploadImage(file);
-            setProductImage({ id: nanoid(), name: file.name, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey });
-            message.success("商品图已上传");
+            const uploaded = await Promise.all(selectedFiles.map(async (file) => {
+                const stored = await uploadImage(file);
+                return { id: nanoid(), name: file.name, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey };
+            }));
+            setProductImage((current) => [...current, ...uploaded]);
+            message.success(`已上传 ${uploaded.length} 张商品图`);
         } catch (error) {
             console.error("Failed to upload commerce product image", error);
             message.error(error instanceof Error ? `图片上传失败：${error.message}` : "图片上传失败，请重试");
@@ -231,7 +233,7 @@ export default function CommercePage() {
     };
 
     const aiWriteDescription = async () => {
-        if (!description.trim() && !productImage) {
+        if (!description.trim() && !productImage.length) {
             message.warning("请先上传商品图或输入简单的商品信息");
             return;
         }
@@ -255,10 +257,10 @@ export default function CommercePage() {
                     { role: "system", content: "你是电商视觉策划助手，负责把简略商品信息整理为准确、可执行的图片创作要求。" },
                     {
                         role: "user",
-                        content: productImage
+                        content: productImage.length
                             ? [
                                   { type: "text", text: instruction },
-                                  { type: "image_url", image_url: { url: await imageToDataUrl(productImage) } },
+                                  ...(await Promise.all(productImage.map(async (image) => ({ type: "image_url" as const, image_url: { url: await imageToDataUrl(image) } })))),
                               ]
                             : instruction,
                     },
@@ -277,7 +279,7 @@ export default function CommercePage() {
     };
 
     const generatePrompt = async () => {
-        if (!description.trim() && !productImage) {
+        if (!description.trim() && !productImage.length) {
             message.error("请上传商品图或填写商品描述");
             return;
         }
@@ -308,10 +310,10 @@ export default function CommercePage() {
                     { role: "system", content: "你是 AikArt 电商视觉提示词专家，输出应专业、具体、可执行。" },
                     {
                         role: "user",
-                        content: productImage
+                        content: productImage.length
                             ? [
                                   { type: "text", text: instruction },
-                                  { type: "image_url", image_url: { url: await imageToDataUrl(productImage) } },
+                                  ...(await Promise.all(productImage.map(async (image) => ({ type: "image_url" as const, image_url: { url: await imageToDataUrl(image) } })))),
                               ]
                             : instruction,
                     },
@@ -342,7 +344,7 @@ export default function CommercePage() {
     };
 
     const generateImages = async () => {
-        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
+        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage.length ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
         const desiredRatio = config.size || recommendedCommerceRatio(outputType, platform);
         const actualRatio = resolveCommerceRatio(effectiveConfig, imageModel, desiredRatio);
         const requestSize = resolveCommerceRequestSize(effectiveConfig, imageModel, desiredRatio);
@@ -357,12 +359,14 @@ export default function CommercePage() {
             return;
         }
         const jobId = nanoid();
+        latestVisibleJobRef.current = jobId;
         setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "single", labels: [commerceOutputLabel(outputType)] }]);
+        setResults([]);
         setGenerationMode("single");
         const requestConfig = { ...effectiveConfig, model: imageModel, imageModel, size: requestSize };
         try {
-            const generated = productImage
-                ? await requestEdit(requestConfig, prompt, [productImage])
+            const generated = productImage.length
+                ? await requestEdit(requestConfig, prompt, productImage)
                 : await requestGeneration(requestConfig, prompt);
             const storedResults = await Promise.all(
                 generated.map(async (image) => {
@@ -370,7 +374,7 @@ export default function CommercePage() {
                     return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: outputType, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt };
                 }),
             );
-            setResults((items) => [...items, ...storedResults]);
+            if (latestVisibleJobRef.current === jobId) setResults(storedResults);
             addHistory({ id: jobId, createdAt: Date.now(), title: `${commerceOutputLabel(outputType)} · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt, results: storedResults });
             message.success(`已生成并保存 ${storedResults.length} 张商品图`);
         } catch (error) {
@@ -392,14 +396,16 @@ export default function CommercePage() {
             openConfigDialog(true, "models");
             return;
         }
-        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
+        const basePrompt = promptResult?.[activePrompt] || buildFallbackPrompt(description || (productImage.length ? "根据参考商品图识别产品并进行真实商业展示" : ""), selectedRole);
         if (!basePrompt.trim()) {
             message.error("请先上传商品图或填写商品描述");
             return;
         }
 
         const jobId = nanoid();
+        latestVisibleJobRef.current = jobId;
         setPendingJobs((jobs) => [...jobs, { id: jobId, mode: "kit", labels: selectedVariants.map((item) => item.value) }]);
+        setResults([]);
         setGenerationMode("kit");
 
         const tasks = selectedVariants.map(async (spec) => {
@@ -413,7 +419,7 @@ export default function CommercePage() {
                 `这是同一套系列素材中的“${spec.label}”画面，最终比例为 ${actualRatio}。保持与其他规格一致的品牌色、布光、背景语言和版式系统。`,
             ].join("\n");
             const requestConfig = { ...effectiveConfig, model: imageModel, imageModel, size: requestSize, count: "1" };
-            const generated = productImage ? await requestEdit(requestConfig, prompt, [productImage]) : await requestGeneration(requestConfig, prompt);
+            const generated = productImage.length ? await requestEdit(requestConfig, prompt, productImage) : await requestGeneration(requestConfig, prompt);
             const image = generated[0];
             if (!image) throw new Error(`${spec.label}没有返回图片`);
             const stored = await uploadImage(image.dataUrl);
@@ -423,7 +429,7 @@ export default function CommercePage() {
         const settled = await Promise.allSettled(tasks);
         const completed = settled.flatMap((item) => (item.status === "fulfilled" ? [item.value] : []));
         const failures = settled.flatMap((item, index) => (item.status === "rejected" ? [`${selectedVariants[index].label}：${item.reason instanceof Error ? item.reason.message : "生成失败"}`] : []));
-        setResults((items) => [...items, ...completed]);
+        if (latestVisibleJobRef.current === jobId) setResults(completed);
         if (completed.length) addHistory({ id: jobId, createdAt: Date.now(), title: `整套素材 · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`, prompt: basePrompt, results: completed });
         setPendingJobs((jobs) => jobs.filter((job) => job.id !== jobId));
         setGenerationMode(null);
@@ -511,17 +517,17 @@ export default function CommercePage() {
 
                 <section className="commerce-composer">
                     <div ref={uploadRef} className="commerce-upload-column">
-                        <input ref={productInputRef} className="hidden" type="file" accept="image/*" onChange={(event) => void uploadProduct(event.target.files)} />
-                        {pendingProductImage || productImage ? (
-                            <div className="commerce-product-preview">
-                                <img src={(pendingProductImage || productImage)!.dataUrl} alt={(pendingProductImage || productImage)!.name} />
+                        <input ref={productInputRef} className="hidden" type="file" accept="image/*" multiple onChange={(event) => void uploadProduct(event.target.files)} />
+                        {pendingProductImage || productImage.length ? (
+                            <div className="commerce-product-preview commerce-product-preview-grid">
+                                {pendingProductImage ? <img src={pendingProductImage.dataUrl} alt={pendingProductImage.name} /> : productImage.map((image, index) => <div key={image.id} className="commerce-product-thumb"><img src={image.dataUrl} alt={image.name} /><button type="button" title="移除商品图" disabled={productUploading} onClick={() => setProductImage((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X className="size-3.5" /></button></div>)}
                                 {productUploading ? (
                                     <div className="commerce-upload-status" role="status">
                                         <LoaderCircle className="size-5 animate-spin" />
                                         <strong>正在保存图片</strong>
                                     </div>
                                 ) : null}
-                                <button type="button" title="移除商品图" disabled={productUploading} onClick={() => setProductImage(null)}><X className="size-4" /></button>
+                                <button type="button" title="移除全部商品图" disabled={productUploading} onClick={() => setProductImage([])}><X className="size-4" /></button>
                             </div>
                         ) : (
                             <button type="button" className="commerce-upload" onClick={() => productInputRef.current?.click()}>
@@ -671,7 +677,7 @@ export default function CommercePage() {
                 onUse={usePrompt}
                 onCopy={copyPrompt}
             />
-            <Modal open={Boolean(previewImage)} footer={null} title="图片预览" onCancel={() => setPreviewImage(null)} width={900} centered>
+            <Modal open={Boolean(previewImage)} footer={previewImage ? <Button type="primary" icon={<Download className="size-4" />} onClick={() => saveAs(previewImage.dataUrl, `aikart-preview-${previewImage.id}.png`)}>下载图片</Button> : null} title="图片预览" onCancel={() => setPreviewImage(null)} width={900} centered>
                 {previewImage ? <Image src={previewImage.dataUrl} alt="生成结果预览" preview={false} style={{ display: "block", maxHeight: "70vh", width: "100%", objectFit: "contain" }} /> : null}
             </Modal>
             <Tour

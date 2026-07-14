@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
-export type ApiCallFormat = "openai" | "gemini" | "bytedance";
+export type ApiCallFormat = "openai" | "gemini" | "grok" | "bytedance";
 
 export type ModelChannel = {
     id: string;
@@ -370,7 +370,7 @@ export function defaultBaseUrlForApiFormat(apiFormat: ApiCallFormat) {
 }
 
 function normalizeApiFormat(apiFormat: unknown): ApiCallFormat {
-    return apiFormat === "gemini" || apiFormat === "bytedance" ? apiFormat : "openai";
+    return apiFormat === "gemini" || apiFormat === "grok" || apiFormat === "bytedance" ? apiFormat : "openai";
 }
 
 function uniqueRawModels(models: string[]) {

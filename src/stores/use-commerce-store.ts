@@ -111,7 +111,7 @@ type CommerceStore = {
     customRoles: CommerceRole[];
     selectedRoleId: string;
     description: string;
-    productImage: ReferenceImage | null;
+    productImage: ReferenceImage[];
     promptResult: CommercePrompt | null;
     activePrompt: "chinese" | "english";
     outputType: CommerceOutputType;
@@ -125,7 +125,7 @@ type CommerceStore = {
     removeRole: (id: string) => void;
     selectRole: (id: string) => void;
     setDescription: (description: string) => void;
-    setProductImage: (productImage: ReferenceImage | null) => void;
+    setProductImage: (productImage: ReferenceImage[] | ReferenceImage | null | ((current: ReferenceImage[]) => ReferenceImage[])) => void;
     setPromptResult: (promptResult: CommercePrompt | null) => void;
     setActivePrompt: (activePrompt: "chinese" | "english") => void;
     setOutputType: (outputType: CommerceOutputType) => void;
@@ -149,7 +149,7 @@ export const useCommerceStore = create<CommerceStore>()(
             customRoles: [],
             selectedRoleId: builtInCommerceRoles[0].id,
             description: "",
-            productImage: null,
+            productImage: [],
             promptResult: null,
             activePrompt: "chinese",
             outputType: "main",
@@ -171,7 +171,7 @@ export const useCommerceStore = create<CommerceStore>()(
                 })),
             selectRole: (selectedRoleId) => set({ selectedRoleId }),
             setDescription: (description) => set({ description, promptResult: null }),
-            setProductImage: (productImage) => set({ productImage, promptResult: null }),
+            setProductImage: (productImage) => set((state) => ({ productImage: typeof productImage === "function" ? productImage(state.productImage) : Array.isArray(productImage) ? productImage : productImage ? [productImage] : [], promptResult: null })),
             setPromptResult: (promptResult) => set({ promptResult }),
             setActivePrompt: (activePrompt) => set({ activePrompt }),
             setOutputType: (outputType) => set({ outputType, promptResult: null }),
@@ -179,11 +179,11 @@ export const useCommerceStore = create<CommerceStore>()(
             setTextLanguage: (textLanguage) => set({ textLanguage, promptResult: null }),
             setKitVariants: (kitVariants) => set({ kitVariants }),
             setResults: (results) => set((state) => ({ results: typeof results === "function" ? results(state.results) : results })),
-            addHistory: (entry) => set((state) => ({ history: [entry, ...state.history.filter((item) => item.id !== entry.id)].slice(0, 30) })),
-            setHistory: (history) => set({ history }),
+            addHistory: (entry) => set((state) => ({ history: [entry, ...state.history.filter((item) => item.id !== entry.id)].sort((a, b) => b.createdAt - a.createdAt).slice(0, 30) })),
+            setHistory: (history) => set({ history: [...history].sort((a, b) => b.createdAt - a.createdAt) }),
             removeHistory: (id) => set((state) => ({ history: state.history.filter((item) => item.id !== id) })),
             clearHistory: () => set({ history: [] }),
-            clearSession: () => set({ description: "", productImage: null, promptResult: null, activePrompt: "chinese", outputType: "main", platform: "auto", textLanguage: "none", kitVariants: ["scene", "selling-point", "close-up", "a-plus"], results: [] }),
+            clearSession: () => set({ description: "", productImage: [], promptResult: null, activePrompt: "chinese", outputType: "main", platform: "auto", textLanguage: "none", kitVariants: ["scene", "selling-point", "close-up", "a-plus"], results: [] }),
         }),
         {
             name: COMMERCE_STORE_KEY,
@@ -191,7 +191,7 @@ export const useCommerceStore = create<CommerceStore>()(
                 customRoles: state.customRoles.map((role) => ({ ...role, avatarUrl: persistentImageUrl(role.avatarUrl, role.avatarStorageKey) })),
                 selectedRoleId: state.selectedRoleId,
                 description: state.description,
-                productImage: state.productImage ? { ...state.productImage, dataUrl: persistentImageUrl(state.productImage.dataUrl, state.productImage.storageKey) } : null,
+                productImage: state.productImage.map((image) => ({ ...image, dataUrl: persistentImageUrl(image.dataUrl, image.storageKey) })),
                 promptResult: state.promptResult,
                 activePrompt: state.activePrompt,
                 outputType: state.outputType,
@@ -203,6 +203,15 @@ export const useCommerceStore = create<CommerceStore>()(
             }),
             onRehydrateStorage: () => () => {
                 useCommerceStore.setState({ hydrated: true });
+            },
+            merge: (persisted, current) => {
+                const saved = (persisted || {}) as Partial<CommerceStore> & { productImage?: ReferenceImage | ReferenceImage[] | null };
+                return {
+                    ...current,
+                    ...saved,
+                    productImage: Array.isArray(saved.productImage) ? saved.productImage : saved.productImage ? [saved.productImage] : [],
+                    history: Array.isArray(saved.history) ? [...saved.history].sort((a, b) => b.createdAt - a.createdAt) : [],
+                };
             },
         },
     ),
