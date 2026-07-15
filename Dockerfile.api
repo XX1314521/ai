@@ -24,7 +24,7 @@ RUN npm ci --legacy-peer-deps --omit=dev --ignore-scripts --no-audit --no-fund \
     && npm cache clean --force
 
 COPY --from=builder /app/dist-server ./dist-server
-COPY --from=builder /app/server/migrations ./dist-server/migrations
+COPY --from=builder --chown=node:node /app/server/migrations ./dist-server/migrations
 
 USER node
 EXPOSE 4000
