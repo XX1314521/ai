@@ -9,6 +9,8 @@ import { uploadImage } from "@/services/image-storage";
 import { cn } from "@/lib/utils";
 import { useAssetStore, type Asset, type AssetKind, type ImageAsset } from "@/stores/use-asset-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
+import { createPlatformLibraryItem, deletePlatformLibraryItem, listPlatformLibrary, updatePlatformLibraryItem } from "@/lib/platform-library";
+import { uploadPermanentMedia } from "@/lib/platform-media";
 
 type AssetFormValues = {
     kind: AssetKind;
@@ -41,6 +43,7 @@ export default function AssetsPage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const updateAsset = useAssetStore((state) => state.updateAsset);
     const removeAsset = useAssetStore((state) => state.removeAsset);
+    const replaceAssets = useAssetStore((state) => state.replaceAssets);
     const [keyword, setKeyword] = useState("");
     const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
     const [page, setPage] = useState(1);
@@ -75,6 +78,22 @@ export default function AssetsPage() {
         const maxPage = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
         setPage((value) => Math.min(value, maxPage));
     }, [filteredAssets.length, pageSize]);
+
+    useEffect(() => {
+        if (!hydrated) return;
+        void listPlatformLibrary().then(({ items }) => {
+            const current = useAssetStore.getState().assets;
+            const localOnly = current.filter((asset) => !asset.serverLibraryId);
+            const remote = items.map((item): Asset | null => {
+                const base = { id: item.id, serverLibraryId: item.id, title: item.title, coverUrl: item.media?.url || "", tags: item.tags, source: item.source, note: item.note, metadata: item.metadata, createdAt: item.createdAt, updatedAt: item.updatedAt };
+                if (item.kind === "text") return { ...base, kind: "text", data: { content: item.content } };
+                if (item.kind === "image" && item.media) return { ...base, kind: "image", data: { dataUrl: item.media.url, serverMediaId: item.media.id, width: item.media.width || 0, height: item.media.height || 0, bytes: item.media.bytes, mimeType: item.media.mimeType || "image/png" } };
+                if (item.kind === "video" && item.media) return { ...base, kind: "video", data: { url: item.media.url, serverMediaId: item.media.id, width: item.media.width || 0, height: item.media.height || 0, bytes: item.media.bytes, mimeType: item.media.mimeType || "video/mp4" } };
+                return null;
+            }).filter((item): item is Asset => Boolean(item));
+            replaceAssets([...remote, ...localOnly]);
+        }).catch((error) => message.error(error instanceof Error ? error.message : "同步服务器素材失败"));
+    }, [hydrated, message, replaceAssets]);
 
     const openCreate = () => {
         setEditingAsset(null);
@@ -112,14 +131,30 @@ export default function AssetsPage() {
         };
 
         if (values.kind === "text") {
-            const asset = { ...base, kind: "text" as const, data: { content: (values.content || "").trim() } };
+            const text = (values.content || "").trim();
+            const serverLibraryId = editingAsset?.serverLibraryId;
+            const saved = serverLibraryId
+                ? (await updatePlatformLibraryItem(serverLibraryId, { title: base.title, content: text, tags: base.tags, source: base.source, note: base.note, metadata: base.metadata }), { id: serverLibraryId })
+                : await createPlatformLibraryItem({ kind: "text", title: base.title, content: text, tags: base.tags, source: base.source, note: base.note, metadata: base.metadata });
+            const asset = { ...base, serverLibraryId: saved.id, kind: "text" as const, data: { content: text } };
             editingAsset ? updateAsset(editingAsset.id, asset) : addAsset(asset);
         } else {
             if (!imageDraft) {
                 message.error("请选择图片文件");
                 return;
             }
-            const asset = { ...base, kind: "image" as const, data: imageDraft };
+            let mediaId = imageDraft.serverMediaId;
+            if (!mediaId) {
+                const response = await fetch(imageDraft.dataUrl);
+                const blob = await response.blob();
+                const file = new File([blob], `${base.title || "asset"}.${blob.type.split("/")[1] || "png"}`, { type: blob.type || imageDraft.mimeType });
+                mediaId = (await uploadPermanentMedia(file)).id;
+            }
+            const serverLibraryId = editingAsset?.serverLibraryId;
+            const saved = serverLibraryId
+                ? (await updatePlatformLibraryItem(serverLibraryId, { title: base.title, tags: base.tags, source: base.source, note: base.note, metadata: base.metadata }), { id: serverLibraryId })
+                : await createPlatformLibraryItem({ kind: "image", title: base.title, mediaId, tags: base.tags, source: base.source, note: base.note, metadata: base.metadata });
+            const asset = { ...base, serverLibraryId: saved.id, kind: "image" as const, data: { ...imageDraft, serverMediaId: mediaId } };
             editingAsset ? updateAsset(editingAsset.id, asset) : addAsset(asset);
         }
 
@@ -135,8 +170,8 @@ export default function AssetsPage() {
 
     const readImageFile = async (file?: File) => {
         if (!file || !file.type.startsWith("image/")) return;
-        const image = await uploadImage(file);
-        const draft = { dataUrl: image.url, storageKey: image.storageKey, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType };
+        const [image, serverMedia] = await Promise.all([uploadImage(file), uploadPermanentMedia(file)]);
+        const draft = { dataUrl: image.url, storageKey: image.storageKey, serverMediaId: serverMedia.id, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType };
         setImageDraft(draft);
         if (!form.getFieldValue("coverUrl")) form.setFieldValue("coverUrl", draft.dataUrl);
         if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
@@ -181,6 +216,7 @@ export default function AssetsPage() {
 
     const confirmDelete = () => {
         if (!deletingAsset) return;
+        if (deletingAsset.serverLibraryId) void deletePlatformLibraryItem(deletingAsset.serverLibraryId).catch(() => undefined);
         removeAsset(deletingAsset.id);
         message.success("素材已删除");
         setDeletingAsset(null);

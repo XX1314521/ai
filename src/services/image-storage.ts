@@ -10,6 +10,7 @@ export type UploadedImage = {
     height: number;
     bytes: number;
     mimeType: string;
+    serverMediaId?: string;
 };
 
 // Keep image blobs in their own database. Adding stores to the shared app

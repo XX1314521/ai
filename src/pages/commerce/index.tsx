@@ -16,6 +16,7 @@ import {
     Pencil,
     Plus,
     RefreshCw,
+    Send,
     ShoppingBag,
     Sparkles,
     Trash2,
@@ -61,6 +62,9 @@ import { useGenerationStore } from "@/stores/use-generation-store";
 import type { ReferenceImage } from "@/types/image";
 import { CommerceSelect } from "./commerce-select";
 import { CommerceSpecEditor } from "./commerce-spec-editor";
+import { PublishWorkDialog, type PublishSource } from "@/components/showcase/publish-work-dialog";
+import { keepServerMedia, uploadDataUrlPermanent, uploadGeneratedDraft, uploadPermanentMedia } from "@/lib/platform-media";
+import { createPlatformLibraryItem } from "@/lib/platform-library";
 
 type RoleDraft = Pick<CommerceRole, "name" | "summary" | "systemPrompt" | "accent" | "avatarUrl" | "avatarStorageKey">;
 
@@ -124,6 +128,7 @@ export default function CommercePage() {
     const [pendingProductImage, setPendingProductImage] = useState<ReferenceImage | null>(null);
     const [tourOpen, setTourOpen] = useState(false);
     const [tourCurrent, setTourCurrent] = useState(0);
+    const [publishSource, setPublishSource] = useState<PublishSource | null>(null);
     const latestVisibleJobRef = useRef("");
     const generationJobs = useGenerationStore((state) => state.jobs);
     const commerceJobs = useMemo(() => generationJobs.filter((job) => job.workbench === "commerce"), [generationJobs]);
@@ -228,8 +233,8 @@ export default function CommercePage() {
 
         try {
             const uploaded = await Promise.all(selectedFiles.map(async (file) => {
-                const stored = await uploadImage(file);
-                return { id: nanoid(), name: file.name, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey };
+                const [stored, serverMedia] = await Promise.all([uploadImage(file), uploadPermanentMedia(file)]);
+                return { id: nanoid(), name: file.name, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey, serverMediaId: serverMedia.id };
             }));
             setProductImage((current) => [...current, ...uploaded]);
             message.success(`已上传 ${uploaded.length} 张商品图`);
@@ -250,7 +255,7 @@ export default function CommercePage() {
             return;
         }
         if (!isAiConfigReady(effectiveConfig, textModel)) {
-            message.warning("请先配置可用的文本模型和 API Key");
+            message.warning("请先登录并选择可用的文本模型");
             openConfigDialog(true, "models");
             return;
         }
@@ -296,7 +301,7 @@ export default function CommercePage() {
             return;
         }
         if (!isAiConfigReady(effectiveConfig, textModel)) {
-            message.warning("请先配置可用的文本模型和 API Key");
+            message.warning("请先登录并选择可用的文本模型");
             openConfigDialog(true, "models");
             return;
         }
@@ -367,7 +372,7 @@ export default function CommercePage() {
             return;
         }
         if (!isAiConfigReady(effectiveConfig, imageModel)) {
-            message.warning("请先配置可用的生图模型和 API Key");
+            message.warning("请先登录并选择可用的生图模型");
             openConfigDialog(true, "models");
             return;
         }
@@ -385,7 +390,8 @@ export default function CommercePage() {
             const storedResults = await Promise.all(
                 generated.map(async (image) => {
                     const stored = await uploadImage(image.dataUrl);
-                    return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: outputType, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt };
+                    const serverMedia = await uploadGeneratedDraft({ dataUrl: stored.url, filename: `${jobId}-${image.id}.png`, width: stored.width, height: stored.height }).catch(() => null);
+                    return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: outputType, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt, serverMediaId: serverMedia?.id };
                 }),
             );
             if (latestVisibleJobRef.current === jobId) setResults(storedResults);
@@ -408,7 +414,7 @@ export default function CommercePage() {
             return;
         }
         if (!isAiConfigReady(effectiveConfig, imageModel)) {
-            message.warning("请先配置可用的生图模型和 API Key");
+            message.warning("请先登录并选择可用的生图模型");
             openConfigDialog(true, "models");
             return;
         }
@@ -440,7 +446,8 @@ export default function CommercePage() {
             const image = generated[0];
             if (!image) throw new Error(`${spec.label}没有返回图片`);
             const stored = await uploadImage(image.dataUrl);
-            return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: spec.value, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt } satisfies CommerceResult;
+            const serverMedia = await uploadGeneratedDraft({ dataUrl: stored.url, filename: `${jobId}-${spec.value}-${image.id}.png`, width: stored.width, height: stored.height }).catch(() => null);
+            return { id: image.id, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, materialType: spec.value, platform, language: textLanguage, size: actualRatio, model: imageModel, prompt, serverMediaId: serverMedia?.id } satisfies CommerceResult;
         });
 
         const settled = await Promise.allSettled(tasks);
@@ -459,14 +466,19 @@ export default function CommercePage() {
         const stored = result.storageKey && result.width && result.height && result.bytes && result.mimeType
             ? { url: result.dataUrl, storageKey: result.storageKey, width: result.width, height: result.height, bytes: result.bytes, mimeType: result.mimeType }
             : await uploadImage(result.dataUrl);
+        const serverMediaId = result.serverMediaId || (await uploadDataUrlPermanent(stored.url, `commerce-${result.id}.png`)).id;
+        await keepServerMedia(serverMediaId);
+        const metadata = { role: selectedRole.name, prompt: result.prompt || promptResult?.[activePrompt] || description, materialType: result.materialType, platform: result.platform || platform, language: result.language || textLanguage, size: result.size, model: result.model || imageModel };
+        const libraryItem = await createPlatformLibraryItem({ kind: "image", title: `电商${commerceMaterialLabel(result.materialType)} ${index + 1}`, mediaId: serverMediaId, tags: ["电商", commerceMaterialLabel(result.materialType), commercePlatformLabel(result.platform || platform), selectedRole.name], source: "电商工作台", metadata });
         addAsset({
             kind: "image",
             title: `电商${commerceMaterialLabel(result.materialType)} ${index + 1}`,
             coverUrl: stored.url,
             tags: ["电商", commerceMaterialLabel(result.materialType), commercePlatformLabel(result.platform || platform), selectedRole.name],
             source: "电商工作台",
-            data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
-            metadata: { role: selectedRole.name, prompt: result.prompt || promptResult?.[activePrompt] || description, materialType: result.materialType, platform: result.platform || platform, language: result.language || textLanguage, size: result.size, model: result.model || imageModel },
+            serverLibraryId: libraryItem.id,
+            data: { dataUrl: stored.url, storageKey: stored.storageKey, serverMediaId, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
+            metadata,
         });
         if (!silent) message.success("已存入我的素材");
     };
@@ -637,6 +649,7 @@ export default function CommercePage() {
                                     <div className="commerce-result-tools">
                                         <Tooltip title="下载"><button type="button" aria-label="下载" onClick={() => saveAs(result.dataUrl, `aikart-${commerceMaterialLabel(result.materialType)}-${index + 1}.png`)}><Download className="size-4" /></button></Tooltip>
                                         <Tooltip title="存入素材"><button type="button" aria-label="存入素材" onClick={() => void saveResult(result, index)}><FolderPlus className="size-4" /></button></Tooltip>
+                                        <Tooltip title="发布作品"><button type="button" aria-label="发布作品" onClick={() => setPublishSource({ dataUrl: result.dataUrl, mediaId: result.serverMediaId, title: `电商${commerceMaterialLabel(result.materialType)}`, prompt: result.prompt || "", metadata: { source: "commerce-workbench", materialType: result.materialType, platform: result.platform, size: result.size, model: result.model } })}><Send className="size-4" /></button></Tooltip>
                                         <Tooltip title="删除"><button type="button" aria-label="删除" onClick={() => setResults((items) => items.filter((item) => item.id !== result.id))}><Trash2 className="size-4" /></button></Tooltip>
                                     </div>
                                 </article>
@@ -692,9 +705,10 @@ export default function CommercePage() {
                 onUse={usePrompt}
                 onCopy={copyPrompt}
             />
-            <Modal open={Boolean(previewImage)} footer={previewImage ? <Button type="primary" icon={<Download className="size-4" />} onClick={() => saveAs(previewImage.dataUrl, `aikart-preview-${previewImage.id}.png`)}>下载图片</Button> : null} title="图片预览" onCancel={() => setPreviewImage(null)} width={900} centered>
+            <Modal open={Boolean(previewImage)} footer={previewImage ? <div className="flex justify-end gap-2"><Button icon={<Send className="size-4" />} onClick={() => setPublishSource({ dataUrl: previewImage.dataUrl, mediaId: previewImage.serverMediaId, title: `电商${commerceMaterialLabel(previewImage.materialType)}`, prompt: previewImage.prompt || "", metadata: { source: "commerce-workbench", materialType: previewImage.materialType, platform: previewImage.platform, size: previewImage.size, model: previewImage.model } })}>发布作品</Button><Button type="primary" icon={<Download className="size-4" />} onClick={() => saveAs(previewImage.dataUrl, `aikart-preview-${previewImage.id}.png`)}>下载图片</Button></div> : null} title="图片预览" onCancel={() => setPreviewImage(null)} width={900} centered>
                 {previewImage ? <Image src={previewImage.dataUrl} alt="生成结果预览" preview={false} style={{ display: "block", maxHeight: "70vh", width: "100%", objectFit: "contain" }} /> : null}
             </Modal>
+            <PublishWorkDialog open={Boolean(publishSource)} source={publishSource} onClose={() => setPublishSource(null)} />
             <Tour
                 open={tourOpen}
                 current={tourCurrent}

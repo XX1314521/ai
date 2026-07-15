@@ -1,14 +1,17 @@
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, shell, session } = require("electron");
 
 const isDev = process.argv.includes("--dev");
-const devUrl = "http://127.0.0.1:3000";
-const productionUrl = process.env.AIKART_APP_URL || "https://canvas.ikui.cn/";
+const devUrl = "http://127.0.0.1:3000/desktop.html";
+const desktopFile = path.join(__dirname, "..", "dist-desktop", "desktop.html");
+const desktopFileUrl = pathToFileURL(desktopFile).href;
 
 function isAllowedAppUrl(url) {
     try {
         const parsed = new URL(url);
-        const appOrigin = new URL(productionUrl).origin;
-        return parsed.origin === appOrigin;
+        if (isDev) return parsed.origin === new URL(devUrl).origin;
+        return parsed.protocol === "file:" && parsed.href.split("#")[0].split("?")[0] === desktopFileUrl;
     } catch {
         return false;
     }
@@ -36,8 +39,7 @@ function createWindow() {
         return { action: "deny" };
     });
     window.webContents.on("will-navigate", (event, url) => {
-        const allowed = isDev ? url.startsWith(devUrl) : isAllowedAppUrl(url);
-        if (!allowed) {
+        if (!isAllowedAppUrl(url)) {
             event.preventDefault();
             if (/^https?:/i.test(url)) void shell.openExternal(url);
         }
@@ -45,13 +47,13 @@ function createWindow() {
 
     if (isDev) {
         void window.loadURL(devUrl);
-        window.webContents.openDevTools({ mode: "detach" });
     } else {
-        void window.loadURL(productionUrl);
+        void window.loadFile(desktopFile);
     }
 }
 
 app.whenReady().then(() => {
+    app.setAppUserModelId("cn.aikart.storyboard");
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     createWindow();
     app.on("activate", () => {

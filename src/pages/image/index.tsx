@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, Send, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
@@ -20,6 +20,9 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useGenerationStore } from "@/stores/use-generation-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 import type { ReferenceImage } from "@/types/image";
+import { PublishWorkDialog, type PublishSource } from "@/components/showcase/publish-work-dialog";
+import { keepServerMedia, uploadDataUrlPermanent, uploadGeneratedDraft, uploadPermanentMedia } from "@/lib/platform-media";
+import { createPlatformLibraryItem } from "@/lib/platform-library";
 
 type GeneratedImage = {
     id: string;
@@ -30,6 +33,7 @@ type GeneratedImage = {
     height: number;
     bytes: number;
     mimeType?: string;
+    serverMediaId?: string;
 };
 
 type GenerationResult = {
@@ -101,6 +105,7 @@ export default function ImagePage() {
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [autoRunToken, setAutoRunToken] = useState(0);
+    const [publishSource, setPublishSource] = useState<PublishSource | null>(null);
     const imageCommand = useWorkbenchAgentStore((state) => state.imageCommand);
     const clearImageCommand = useWorkbenchAgentStore((state) => state.clearImageCommand);
     const processedCommandRef = useRef(0);
@@ -142,8 +147,8 @@ export default function ImagePage() {
         const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
         const nextReferences = await Promise.all(
             imageFiles.map(async (file) => {
-                const image = await uploadImage(file);
-                return { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey };
+                const [image, serverMedia] = await Promise.all([uploadImage(file), uploadPermanentMedia(file)]);
+                return { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, serverMediaId: serverMedia.id };
             }),
         );
         setReferences((value) => [...value, ...nextReferences]);
@@ -159,8 +164,9 @@ export default function ImagePage() {
             }
             const nextReferences = await Promise.all(
                 blobs.map(async (blob, index) => {
-                    const image = await uploadImage(blob);
-                    return { id: nanoid(), name: `clipboard-${index + 1}.png`, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey };
+                    const file = new File([blob], `clipboard-${index + 1}.png`, { type: blob.type || "image/png" });
+                    const [image, serverMedia] = await Promise.all([uploadImage(blob), uploadPermanentMedia(file)]);
+                    return { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, serverMediaId: serverMedia.id };
                 }),
             );
             setReferences((value) => [...value, ...nextReferences]);
@@ -208,7 +214,8 @@ export default function ImagePage() {
             const logImages = await Promise.all(
                 successImages.map(async (image) => {
                     const stored = await uploadImage(image.dataUrl);
-                    return { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
+                    const serverMedia = await uploadGeneratedDraft({ dataUrl: stored.url, filename: `${batchId}-${image.id}.png`, width: stored.width, height: stored.height }).catch(() => null);
+                    return { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, serverMediaId: serverMedia?.id };
                 }),
             );
             setBatches((value) => value.map((batch) => batch.id === batchId ? { ...batch, results: batch.results.map((item) => {
@@ -273,13 +280,17 @@ export default function ImagePage() {
 
     const saveResultToAssets = async (image: GeneratedImage, index: number, sourcePrompt: string) => {
         const stored = await uploadImage(image.dataUrl);
+        const serverMediaId = image.serverMediaId || (await uploadDataUrlPermanent(stored.url, `image-result-${index + 1}.png`)).id;
+        await keepServerMedia(serverMediaId);
+        const libraryItem = await createPlatformLibraryItem({ kind: "image", title: `生成结果 ${index + 1}`, mediaId: serverMediaId, source: "生图工作台", metadata: { source: "image-page", prompt: sourcePrompt } });
         addAsset({
             kind: "image",
             title: `生成结果 ${index + 1}`,
             coverUrl: stored.url,
             tags: [],
             source: "生图工作台",
-            data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
+            serverLibraryId: libraryItem.id,
+            data: { dataUrl: stored.url, storageKey: stored.storageKey, serverMediaId, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
             metadata: { source: "image-page", prompt: sourcePrompt },
         });
         message.success("已加入我的素材");
@@ -378,7 +389,8 @@ export default function ImagePage() {
         try {
             const image = await runGenerationSlot(batch.id, index, snapshot);
             const stored = await uploadImage(image.dataUrl);
-            const logImage = { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType };
+            const serverMedia = await uploadGeneratedDraft({ dataUrl: stored.url, filename: `${batch.id}-${image.id}.png`, width: stored.width, height: stored.height }).catch(() => null);
+            const logImage = { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType, serverMediaId: serverMedia?.id };
             setBatches((value) => value.map((item) => item.id === batch.id ? { ...item, results: updateResultAt(item.results, index, { image: { ...image, dataUrl: stored.url, storageKey: stored.storageKey } }) } : item));
             saveLog(
                 buildLog({
@@ -532,7 +544,7 @@ export default function ImagePage() {
                                         <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                                             {batch.results.map((result, index) =>
                                                 result.status === "success" && result.image ? (
-                                                    <ResultImageCard key={result.id} image={result.image} index={index} prompt={batch.prompt} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
+                                                    <ResultImageCard key={result.id} image={result.image} index={index} prompt={batch.prompt} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} onPublish={(image, itemIndex, sourcePrompt) => setPublishSource({ dataUrl: image.dataUrl, mediaId: image.serverMediaId, title: `生成作品 ${itemIndex + 1}`, prompt: sourcePrompt, metadata: { source: "image-workbench", model: batch.model, size: batch.config.size, quality: batch.config.quality } })} />
                                                 ) : result.status === "failed" ? (
                                                     <FailedImageCard key={result.id} error={result.error || "生成失败"} onRetry={() => void retryResult(batch, index)} />
                                                 ) : (
@@ -584,6 +596,7 @@ export default function ImagePage() {
             <Modal title="删除生成记录" open={deleteConfirmOpen} onCancel={() => setDeleteConfirmOpen(false)} onOk={deleteSelectedLogs} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
                 确定删除选中的 {selectedLogIds.length} 条生成记录吗？
             </Modal>
+            <PublishWorkDialog open={Boolean(publishSource)} source={publishSource} onClose={() => setPublishSource(null)} />
         </div>
     );
 }
@@ -611,6 +624,7 @@ function ResultImageCard({
     onEdit,
     onDownload,
     onSaveAsset,
+    onPublish,
 }: {
     image: GeneratedImage;
     index: number;
@@ -618,6 +632,7 @@ function ResultImageCard({
     onEdit: (image: GeneratedImage, index: number) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
     onSaveAsset: (image: GeneratedImage, index: number, prompt: string) => void;
+    onPublish: (image: GeneratedImage, index: number, prompt: string) => void;
 }) {
     return (
         <div className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
@@ -632,7 +647,7 @@ function ResultImageCard({
                     <span>{formatBytes(image.bytes)}</span>
                     <span>{formatDuration(image.durationMs)}</span>
                 </div>
-                <div className="grid min-w-0 grid-cols-3 gap-2">
+                <div className="grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-4">
                     <Tooltip title="添加到素材">
                         <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index, prompt)}>
                             添加到素材
@@ -646,6 +661,11 @@ function ResultImageCard({
                     <Tooltip title="下载">
                         <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)}>
                             下载
+                        </Button>
+                    </Tooltip>
+                    <Tooltip title="保存或发布作品">
+                        <Button className={RESULT_ACTION_BUTTON_CLASS} size="small" icon={<Send className="size-3.5" />} onClick={() => onPublish(image, index, prompt)}>
+                            发布作品
                         </Button>
                     </Tooltip>
                 </div>

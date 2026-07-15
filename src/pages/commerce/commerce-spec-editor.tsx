@@ -19,6 +19,7 @@ type CommerceSpecEditorProps = {
     open: boolean;
     config: AiConfig;
     imageModel: string;
+    textModel: string;
     description: string;
     outputType: CommerceOutputType;
     platform: CommercePlatform;
@@ -31,6 +32,7 @@ type CommerceSpecEditorProps = {
     onSizeChange: (value: string) => void;
     onCountChange: (value: string) => void;
     onModelChange: (value: string) => void;
+    onTextModelChange: (value: string) => void;
     onMissingConfig: () => void;
     onAiWrite: () => void;
     aiWriting: boolean;
@@ -40,6 +42,7 @@ export function CommerceSpecEditor({
     open,
     config,
     imageModel,
+    textModel,
     description,
     outputType,
     platform,
@@ -52,6 +55,7 @@ export function CommerceSpecEditor({
     onSizeChange,
     onCountChange,
     onModelChange,
+    onTextModelChange,
     onMissingConfig,
     onAiWrite,
     aiWriting,
@@ -108,7 +112,7 @@ export function CommerceSpecEditor({
                     />
                 </label>
 
-                <div className="commerce-spec-editor-grid is-three">
+                <div className="commerce-spec-editor-grid is-four">
                     <label>
                         <span>画面比例 <small>按当前模型适配</small></span>
                         <CommerceSelect value={config.size} options={ratioOptions} onChange={onSizeChange} ariaLabel="画面比例" />
@@ -120,6 +124,10 @@ export function CommerceSpecEditor({
                     <div className="commerce-spec-model">
                         <span>生图模型</span>
                         <ModelPicker config={config} capability="image" value={imageModel} onChange={onModelChange} onMissingConfig={onMissingConfig} className="commerce-model-picker" contentClassName="commerce-model-picker-content" fullWidth />
+                    </div>
+                    <div className="commerce-spec-model">
+                        <span>文本模型</span>
+                        <ModelPicker config={config} capability="text" value={textModel} onChange={onTextModelChange} onMissingConfig={onMissingConfig} className="commerce-model-picker" contentClassName="commerce-model-picker-content" fullWidth />
                     </div>
                 </div>
 

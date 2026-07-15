@@ -8,7 +8,8 @@ import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent }
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
 import { useAgentStore } from "@/stores/use-agent-store";
-import { AIKART_BASE_URL, createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { AIKART_BASE_URL, AIKART_PROVIDER_URL, createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -66,6 +67,7 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 
 export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
     const { message } = App.useApp();
+    const user = useAuthStore((state) => state.user);
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [loadingChannelId, setLoadingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
@@ -133,7 +135,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
 
     const refreshChannelModels = async (channel: ModelChannel) => {
         if (!channel.baseUrl.trim() || !channel.apiKey.trim()) {
-            message.error("请先填写该渠道的 Base URL 和 API Key");
+            message.error("请先登录并设置该渠道的调用格式");
             return;
         }
         setLoadingChannelId(channel.id);
@@ -151,7 +153,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const refreshAllModels = async () => {
         const runnable = config.channels.filter((channel) => channel.baseUrl.trim() && channel.apiKey.trim());
         if (!runnable.length) {
-            message.error("请先填写至少一个渠道的 Base URL 和 API Key");
+            message.error("请先登录并保留至少一个模型渠道");
             return;
         }
         setLoadingChannelId("all");
@@ -287,13 +289,15 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Form.Item label="调用格式" className="mb-0">
                                                     <Select value={channel.apiFormat} options={apiFormatOptions} onChange={(value: ApiCallFormat) => updateChannelApiFormat(channel, value)} />
                                                 </Form.Item>
-                                                <Form.Item label="Base URL（固定）" className="mb-0">
+                                                <Form.Item label="爱坤Ai 服务（固定）" className="mb-0">
                                                     <div className="flex h-8 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300" aria-label="固定 Base URL">
-                                                        {AIKART_BASE_URL}
+                                                        {AIKART_PROVIDER_URL}
                                                     </div>
                                                 </Form.Item>
-                                                <Form.Item label="API Key" className="mb-0">
-                                                    <Input.Password value={channel.apiKey} onChange={(event) => updateChannel(channel.id, { apiKey: event.target.value })} />
+                                                <Form.Item label="访问密钥（登录后自动获取）" extra="完整密钥仅保存在 AikArt 服务端，浏览器不会接收。" className="mb-0">
+                                                    <div className="flex h-8 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 font-mono text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
+                                                        {user?.apiKeyHint || "登录后自动获取"}
+                                                    </div>
                                                 </Form.Item>
                                                 <Form.Item label="模型列表" className="mb-0 md:col-span-2">
                                                     <Select mode="tags" showSearch allowClear maxTagCount="responsive" placeholder="输入模型名，或点击拉取模型" value={channel.models} onChange={(models) => updateChannel(channel.id, { models })} />
@@ -395,7 +399,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Cloud className="size-4" />
                                                 WebDAV 同步
                                             </div>
-                                            <div className="mt-1 text-xs text-stone-500">同步画布、我的素材、生成记录和本地媒体文件，不包含 AI API Key；浏览器会直接连接 WebDAV 服务。</div>
+                                            <div className="mt-1 text-xs text-stone-500">同步画布、我的素材、生成记录和本地媒体文件，不包含爱坤Ai访问密钥；浏览器会直接连接 WebDAV 服务。</div>
                                         </div>
                                         <div className="text-xs text-stone-500">{webdav.lastSyncedAt ? `上次同步 ${formatWebdavTime(webdav.lastSyncedAt)}` : "尚未同步"}</div>
                                     </div>
@@ -507,6 +511,7 @@ export function AppConfigModal() {
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     return (
         <Modal
+            className="aikart-config-modal"
             title={
                 <div>
                     <div className="text-lg font-semibold">配置与用户偏好</div>

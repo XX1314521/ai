@@ -57,19 +57,23 @@ export type ConfigTabKey = "channels" | "models" | "preferences" | "webdav" | "c
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 export type ModelCapability = "image" | "video" | "text" | "audio";
 const CHANNEL_MODEL_SEPARATOR = "::";
-export const AIKART_BASE_URL = "https://ai.ikui.cn/";
+export const AIKART_BASE_URL = "/api/ai";
+export const AIKART_PROVIDER_URL = "https://ai.ikui.cn/";
+export const SERVER_MANAGED_API_KEY = "session-managed";
+
+scrubLegacyApiSecrets();
 
 export const defaultConfig: AiConfig = {
     channelMode: "local",
     baseUrl: AIKART_BASE_URL,
-    apiKey: "",
+    apiKey: SERVER_MANAGED_API_KEY,
     apiFormat: "openai",
     channels: [
         {
             id: "default",
             name: "默认渠道",
             baseUrl: AIKART_BASE_URL,
-            apiKey: "",
+            apiKey: SERVER_MANAGED_API_KEY,
             apiFormat: "openai",
             models: ["gpt-image-2", "grok-imagine-video", "gpt-5.5", "gpt-4o-mini-tts"],
         },
@@ -163,7 +167,7 @@ function modelListKey(capability: ModelCapability) {
 
 function isAiConfigReady(config: AiConfig, model: string) {
     const channel = resolveModelChannel(config, model);
-    return Boolean(model.trim() && channel.baseUrl.trim() && channel.apiKey.trim());
+    return Boolean(model.trim() && channel.baseUrl.trim());
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -195,7 +199,14 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
-            partialize: (state) => ({ config: state.config, webdav: state.webdav }),
+            partialize: (state) => ({
+                config: {
+                    ...state.config,
+                    apiKey: "",
+                    channels: state.config.channels.map((channel) => ({ ...channel, apiKey: "" })),
+                },
+                webdav: state.webdav,
+            }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
@@ -210,6 +221,7 @@ export const useConfigStore = create<ConfigStore>()(
                     config: {
                         ...config,
                         baseUrl: AIKART_BASE_URL,
+                        apiKey: SERVER_MANAGED_API_KEY,
                         channelMode: "local",
                         apiFormat: normalizeApiFormat(config.apiFormat),
                         channels,
@@ -256,7 +268,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         id: channel?.id?.trim() || nanoid(),
         name: channel?.name?.trim() || "新渠道",
         baseUrl: AIKART_BASE_URL,
-        apiKey: channel?.apiKey || "",
+        apiKey: SERVER_MANAGED_API_KEY,
         apiFormat,
         models: uniqueRawModels(channel?.models || []),
     };
@@ -318,7 +330,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         ...config,
         model: resolvedModel,
         baseUrl: AIKART_BASE_URL,
-        apiKey: channel.apiKey,
+        apiKey: SERVER_MANAGED_API_KEY,
         apiFormat: seedanceModel ? "bytedance" : channel.apiFormat,
     };
 }
@@ -338,7 +350,7 @@ function normalizeChannels(config: AiConfig) {
             ...channel,
             id: channel.id || (index === 0 ? "default" : `channel-${index + 1}`),
             name: channel.name || (index === 0 ? "默认渠道" : `渠道 ${index + 1}`),
-            apiKey: channel.apiKey || (index === 0 ? config.apiKey : ""),
+            apiKey: SERVER_MANAGED_API_KEY,
             apiFormat: channel.apiFormat || (index === 0 ? config.apiFormat : undefined),
             models: uniqueRawModels(channel.models || []),
         }),
@@ -349,7 +361,7 @@ function normalizeChannels(config: AiConfig) {
                 id: "default",
                 name: "默认渠道",
                 baseUrl: config.baseUrl || defaultConfig.baseUrl,
-                apiKey: config.apiKey || "",
+                apiKey: SERVER_MANAGED_API_KEY,
                 apiFormat: config.apiFormat || defaultConfig.apiFormat,
                 models: uniqueRawModels([
                     ...(config.models || []),
@@ -386,6 +398,24 @@ export function buildApiUrl(baseUrl: string, path: string) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     if (normalizedPath.startsWith("/v3/")) return `${AIKART_BASE_URL.replace(/\/+$/, "")}${normalizedPath}`;
     return `${AIKART_BASE_URL.replace(/\/+$/, "")}/v1${normalizedPath}`;
+}
+
+function scrubLegacyApiSecrets() {
+    if (typeof window === "undefined") return;
+    try {
+        const raw = window.localStorage.getItem(CONFIG_STORE_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw) as { state?: { config?: Partial<AiConfig> } };
+        const storedConfig = payload.state?.config;
+        if (!storedConfig) return;
+        storedConfig.apiKey = "";
+        if (Array.isArray(storedConfig.channels)) {
+            storedConfig.channels = storedConfig.channels.map((channel) => ({ ...channel, apiKey: "" }));
+        }
+        window.localStorage.setItem(CONFIG_STORE_KEY, JSON.stringify(payload));
+    } catch {
+        window.localStorage.removeItem(CONFIG_STORE_KEY);
+    }
 }
 
 function normalizeArkPlanBaseUrl(baseUrl: string) {

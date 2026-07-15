@@ -1,4 +1,4 @@
-import { FileText, GalleryHorizontalEnd, ImagePlus, Images, Maximize2, Settings2, ShoppingBag, Video } from "lucide-react";
+import { Clapperboard, FileText, GalleryHorizontalEnd, ImagePlus, Images, Maximize2, Settings2, ShoppingBag, Video } from "lucide-react";
 
 export const navigationTools = [
     {
@@ -15,6 +15,11 @@ export const navigationTools = [
         slug: "commerce",
         label: "电商工作台",
         icon: ShoppingBag,
+    },
+    {
+        slug: "comic",
+        label: "漫剧",
+        icon: Clapperboard,
     },
     {
         slug: "video",

@@ -3,6 +3,7 @@ import axios from "axios";
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { buildApiUrl, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
+import { uploadGeneratedDraft } from "@/lib/platform-media";
 
 type RequestOptions = { signal?: AbortSignal };
 
@@ -46,13 +47,15 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, o
 
 export async function storeGeneratedAudio(blob: Blob, format = "mp3"): Promise<UploadedFile> {
     const audio = blob.type.startsWith("audio/") ? blob : new Blob([blob], { type: audioMimeType(format) });
-    return uploadMediaFile(audio, "audio");
+    const stored = await uploadMediaFile(audio, "audio");
+    const serverMedia = await uploadGeneratedDraft({ dataUrl: stored.url, filename: `aikart-audio-${Date.now()}.${format}` }).catch(() => null);
+    return { ...stored, serverMediaId: serverMedia?.id };
 }
 
 function assertAudioConfig(config: AiConfig, model: string) {
     if (!model) throw new Error("请先配置音频模型");
     if (!config.baseUrl.trim()) throw new Error("请先配置 Base URL");
-    if (!config.apiKey.trim()) throw new Error("请先配置 API Key");
+    if (!config.apiKey.trim()) throw new Error("请先登录爱坤Ai");
     if (config.apiFormat === "gemini") throw new Error("Gemini 调用格式暂不支持音频生成，请使用 OpenAI 格式渠道");
 }
 
@@ -78,7 +81,7 @@ function readAxiosError(error: unknown, fallback: string) {
 }
 
 function statusMessage(status: number | undefined, fallback: string) {
-    if (status === 401 || status === 403) return "鉴权失败，请检查 API Key、套餐权限或模型权限";
+    if (status === 401 || status === 403) return "鉴权失败，请检查爱坤Ai登录状态、套餐权限或模型权限";
     if (status === 429) return "请求被限流或额度不足，请稍后重试";
     return status ? `${fallback}（${status}）` : fallback;
 }

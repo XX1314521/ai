@@ -22,11 +22,14 @@ import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } f
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
+import { createPlatformLibraryItem } from "@/lib/platform-library";
+import { keepServerMedia, uploadDataUrlPermanent } from "@/lib/platform-media";
 
 type GeneratedVideo = {
     id: string;
     url: string;
     storageKey: string;
+    serverMediaId?: string;
     durationMs: number;
     width: number;
     height: number;
@@ -249,14 +252,18 @@ export default function VideoPage() {
         saveAs(video.url, "video.mp4");
     };
 
-    const saveResultToAssets = (video: GeneratedVideo) => {
+    const saveResultToAssets = async (video: GeneratedVideo) => {
+        const serverMediaId = video.serverMediaId || (await uploadDataUrlPermanent(video.url, `aikart-video-${video.id}.mp4`)).id;
+        await keepServerMedia(serverMediaId);
+        const libraryItem = await createPlatformLibraryItem({ kind: "video", title: "生成视频", mediaId: serverMediaId, source: "视频创作台", metadata: { source: "video-page", prompt } });
         addAsset({
             kind: "video",
             title: "生成视频",
             coverUrl: "",
             tags: [],
             source: "视频创作台",
-            data: { url: video.url, storageKey: video.storageKey, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
+            serverLibraryId: libraryItem.id,
+            data: { url: video.url, storageKey: video.storageKey, serverMediaId, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
             metadata: { source: "video-page", prompt },
         });
         message.success("已加入我的素材");
@@ -334,6 +341,7 @@ export default function VideoPage() {
                         id: nanoid(),
                         url: stored.url,
                         storageKey: stored.storageKey,
+                        serverMediaId: stored.serverMediaId,
                         durationMs: Date.now() - log.createdAt,
                         width: stored.width || 1280,
                         height: stored.height || 720,

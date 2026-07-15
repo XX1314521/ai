@@ -1,9 +1,13 @@
 node_modules/
 dist/
+dist-server/
 .env
 .env.*
 !.env.example
 *.log
+release/
+release-storyboard/
+release-storyboard-build/
+dist-desktop/
 tsconfig.tsbuildinfo
 .DS_Store
-

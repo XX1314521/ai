@@ -1113,3 +1113,423 @@
     animation: none;
     mix-blend-mode: normal;
 }
+
+.aikart-account-trigger {
+    display: inline-flex;
+    height: 38px;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.92);
+    border-radius: 11px;
+    padding: 3px 9px 3px 4px;
+    color: #334155;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: inset 0 1px 0 white;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.aikart-login-page {
+    position: relative;
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    overflow: hidden;
+    padding: 80px 20px 30px;
+    color: #172033;
+    background: #eef2f7;
+}
+
+.aikart-login-page::before {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(77, 95, 122, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(77, 95, 122, 0.055) 1px, transparent 1px);
+    background-size: 36px 36px;
+    content: "";
+    pointer-events: none;
+}
+
+.aikart-login-brand {
+    position: absolute;
+    top: 26px;
+    left: 34px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: #101827;
+    font-size: 17px;
+    font-weight: 780;
+}
+
+.aikart-login-logo {
+    width: 22px;
+    height: 22px;
+    background: #0f172a;
+    mask: url("/logo.svg") center / contain no-repeat;
+}
+
+.aikart-login-panel {
+    position: relative;
+    z-index: 1;
+    width: min(430px, 100%);
+    border: 1px solid rgba(255, 255, 255, 0.92);
+    border-radius: 22px;
+    padding: 34px;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 28px 90px rgba(35, 51, 73, 0.18), inset 0 1px 0 white;
+    backdrop-filter: blur(24px) saturate(140%);
+}
+
+.aikart-login-heading > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #ccebdc;
+    border-radius: 999px;
+    padding: 5px 9px;
+    color: #08764b;
+    background: #effbf5;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.aikart-login-heading h1 {
+    margin: 18px 0 5px;
+    font-size: 28px;
+    letter-spacing: 0;
+}
+
+.aikart-login-heading p {
+    margin: 0;
+    color: #778397;
+    font-size: 13px;
+}
+
+.aikart-login-panel form {
+    display: grid;
+    gap: 15px;
+    margin-top: 27px;
+}
+
+.aikart-login-panel form label {
+    display: grid;
+    gap: 7px;
+    color: #4b576a;
+    font-size: 12px;
+    font-weight: 680;
+}
+
+.aikart-login-panel .ant-input-affix-wrapper,
+.aikart-login-panel .ant-btn {
+    min-height: 46px;
+    border-radius: 12px;
+}
+
+.aikart-login-panel .ant-btn-primary {
+    margin-top: 3px;
+    border-color: #111827;
+    background: #111827;
+    box-shadow: 0 10px 22px rgba(17, 24, 39, 0.16);
+}
+
+.aikart-login-invite {
+    border: 1px solid #dfe6ed;
+    border-radius: 10px;
+    padding: 9px 11px;
+    color: #687589;
+    background: #f7f9fb;
+    font-size: 11px;
+}
+
+.aikart-login-foot {
+    margin-top: 22px;
+    color: #98a1af;
+    font-size: 10px;
+    text-align: center;
+}
+
+.aikart-login-register {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-top: 16px;
+    color: #7d8898;
+    font-size: 11px;
+}
+
+.aikart-login-register .ant-btn-link {
+    display: inline-flex;
+    height: auto;
+    min-height: 0;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    color: #16785a;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.aikart-account-page,
+.aikart-admin-page {
+    background: #f2f5f8;
+}
+
+.aikart-page-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.aikart-page-heading span {
+    color: #15936a;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 2px;
+}
+
+.aikart-page-heading h1 {
+    margin: 7px 0 3px;
+    color: #172033;
+    font-size: 28px;
+    letter-spacing: 0;
+}
+
+.aikart-page-heading p {
+    margin: 0;
+    color: #7a8799;
+    font-size: 12px;
+}
+
+.aikart-page-heading .ant-btn,
+.aikart-account-page .ant-btn,
+.aikart-admin-page .ant-btn {
+    border-radius: 10px;
+}
+
+.aikart-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 13px;
+}
+
+.aikart-metric-grid article {
+    position: relative;
+    min-height: 150px;
+    border: 1px solid white;
+    border-radius: 16px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 10px 35px rgba(55, 72, 95, 0.07), inset 0 1px 0 white;
+}
+
+.aikart-metric-grid article > svg {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 22px;
+    color: #23a779;
+}
+
+.aikart-metric-grid article span,
+.aikart-metric-grid article strong,
+.aikart-metric-grid article small {
+    display: block;
+}
+
+.aikart-metric-grid article span {
+    color: #68768a;
+    font-size: 11px;
+}
+
+.aikart-metric-grid article strong {
+    margin-top: 17px;
+    color: #152033;
+    font-size: 27px;
+}
+
+.aikart-metric-grid article small {
+    margin-top: 6px;
+    color: #9aa4b1;
+}
+
+.aikart-account-section,
+.aikart-admin-section {
+    margin-top: 15px;
+    border: 1px solid white;
+    border-radius: 16px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 35px rgba(55, 72, 95, 0.06);
+}
+
+.aikart-section-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 16px;
+}
+
+.aikart-section-title h2 {
+    margin: 0;
+    color: #1d293b;
+    font-size: 16px;
+    letter-spacing: 0;
+}
+
+.aikart-section-title p {
+    margin: 4px 0 0;
+    color: #8994a4;
+    font-size: 11px;
+}
+
+.aikart-invite-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+    margin-top: 9px;
+}
+
+.aikart-invite-row code {
+    overflow: hidden;
+    border: 1px solid #dce4ea;
+    border-radius: 10px;
+    padding: 9px 12px;
+    color: #455267;
+    background: #f5f7f9;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.aikart-key-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 15px;
+    border: 1px solid #d8e7e0;
+    border-radius: 14px;
+    padding: 14px 16px;
+    color: #227a5d;
+    background: #f1faf6;
+}
+
+.aikart-key-strip div,
+.aikart-key-strip strong,
+.aikart-key-strip span {
+    display: block;
+}
+
+.aikart-key-strip span {
+    margin-top: 2px;
+    color: #577a6e;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.aikart-key-strip small {
+    margin-left: auto;
+    color: #77968a;
+}
+
+.aikart-admin-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.aikart-admin-stats .ant-statistic {
+    min-height: 112px;
+    border: 1px solid white;
+    border-radius: 15px;
+    padding: 17px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 8px 28px rgba(55, 72, 95, 0.06);
+}
+
+.aikart-admin-toolbar {
+    display: flex;
+    max-width: 420px;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.aikart-admin-toolbar .ant-select,
+.aikart-admin-toolbar .ant-input-search {
+    width: 100%;
+}
+
+@media (max-width: 980px) {
+    .aikart-admin-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .aikart-login-brand {
+        left: 20px;
+    }
+
+    .aikart-login-panel {
+        padding: 25px 20px;
+    }
+
+    .aikart-page-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .aikart-metric-grid,
+    .aikart-admin-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .aikart-invite-row {
+        grid-template-columns: 1fr;
+    }
+
+    .aikart-key-strip {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .aikart-key-strip small {
+        width: 100%;
+        margin-left: 32px;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-nav-actions {
+        gap: 0;
+        border: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .app-nav-actions > .ant-btn,
+    .app-nav-actions > .inline-flex:not(.aikart-account-slot) {
+        display: none !important;
+    }
+
+    .aikart-account-slot,
+    .aikart-account-slot > .ant-btn {
+        display: inline-flex !important;
+    }
+
+    .aikart-account-trigger > span:last-child {
+        display: none;
+    }
+
+    .aikart-account-trigger {
+        width: 38px;
+        justify-content: center;
+        padding: 3px;
+    }
+}

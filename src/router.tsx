@@ -1,13 +1,18 @@
 import { createBrowserRouter, createHashRouter, Outlet } from "react-router-dom";
 
 import UserLayout from "@/layouts/user-layout";
+import { RequireAuth } from "@/components/auth/require-auth";
+import AccountPage from "@/pages/account";
+import AdminPage from "@/pages/admin";
 import AssetsPage from "@/pages/assets";
 import CanvasPage from "@/pages/canvas";
 import CanvasProjectPage from "@/pages/canvas/project";
+import ComicPage from "@/pages/comic";
 import CommercePage from "@/pages/commerce";
 import ConfigPage from "@/pages/config";
 import HomePage from "@/pages/home";
 import ImagePage from "@/pages/image";
+import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import PromptsPage from "@/pages/prompts";
 import ShowcasePage from "@/pages/showcase";
@@ -22,17 +27,21 @@ const routes = [
         ),
         children: [
             { path: "/", element: <HomePage /> },
-            { path: "/image", element: <ImagePage /> },
-            { path: "/commerce", element: <CommercePage /> },
-            { path: "/video", element: <VideoPage /> },
-            { path: "/assets", element: <AssetsPage /> },
+            { path: "/image", element: <RequireAuth><ImagePage /></RequireAuth> },
+            { path: "/commerce", element: <RequireAuth><CommercePage /></RequireAuth> },
+            { path: "/comic", element: <RequireAuth><ComicPage /></RequireAuth> },
+            { path: "/video", element: <RequireAuth><VideoPage /></RequireAuth> },
+            { path: "/assets", element: <RequireAuth><AssetsPage /></RequireAuth> },
             { path: "/showcase", element: <ShowcasePage /> },
-            { path: "/prompts", element: <PromptsPage /> },
-            { path: "/canvas", element: <CanvasPage /> },
-            { path: "/canvas/:id", element: <CanvasProjectPage /> },
-            { path: "/config", element: <ConfigPage /> },
+            { path: "/prompts", element: <RequireAuth><PromptsPage /></RequireAuth> },
+            { path: "/canvas", element: <RequireAuth><CanvasPage /></RequireAuth> },
+            { path: "/canvas/:id", element: <RequireAuth><CanvasProjectPage /></RequireAuth> },
+            { path: "/config", element: <RequireAuth><ConfigPage /></RequireAuth> },
+            { path: "/account", element: <RequireAuth><AccountPage /></RequireAuth> },
+            { path: "/admin", element: <RequireAuth admin><AdminPage /></RequireAuth> },
         ],
     },
+    { path: "/login", element: <LoginPage /> },
     { path: "*", element: <NotFound /> },
 ];
 

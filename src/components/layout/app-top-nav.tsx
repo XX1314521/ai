@@ -6,6 +6,7 @@ import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
+import { AccountMenu } from "@/components/layout/account-menu";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -88,6 +89,7 @@ export function AppTopNav() {
                                 <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" icon={<Bot className="size-4" />} onClick={togglePanel} aria-label="打开 Agent" />
                             </Tooltip>
                             <UserStatusActions />
+                            <span className="aikart-account-slot"><AccountMenu /></span>
                             <Button type="primary" className="app-workbench-button !h-10 !rounded-lg !px-5" onClick={() => window.location.assign("/canvas")}>进入工作台</Button>
                         </div>
                     </div>

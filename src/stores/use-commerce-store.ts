@@ -20,6 +20,7 @@ export type CommerceResult = {
     size?: string;
     model?: string;
     prompt?: string;
+    serverMediaId?: string;
 };
 
 export type CommerceHistory = {
