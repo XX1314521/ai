@@ -9,5 +9,6 @@ release/
 release-storyboard/
 release-storyboard-build/
 dist-desktop/
+backups/
 tsconfig.tsbuildinfo
 .DS_Store
