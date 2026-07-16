@@ -10,6 +10,7 @@ export type ModelChannel = {
     name: string;
     baseUrl: string;
     apiKey: string;
+    apiTokenId: string;
     apiFormat: ApiCallFormat;
     models: string[];
 };
@@ -18,6 +19,7 @@ export type AiConfig = {
     channelMode: "remote" | "local";
     baseUrl: string;
     apiKey: string;
+    apiTokenId: string;
     apiFormat: ApiCallFormat;
     channels: ModelChannel[];
     model: string;
@@ -67,6 +69,7 @@ export const defaultConfig: AiConfig = {
     channelMode: "local",
     baseUrl: AIKART_BASE_URL,
     apiKey: SERVER_MANAGED_API_KEY,
+    apiTokenId: "",
     apiFormat: "openai",
     channels: [
         {
@@ -74,6 +77,7 @@ export const defaultConfig: AiConfig = {
             name: "默认渠道",
             baseUrl: AIKART_BASE_URL,
             apiKey: SERVER_MANAGED_API_KEY,
+            apiTokenId: "",
             apiFormat: "openai",
             models: ["gpt-image-2", "grok-imagine-video", "gpt-5.5", "gpt-4o-mini-tts"],
         },
@@ -269,6 +273,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         name: channel?.name?.trim() || "新渠道",
         baseUrl: AIKART_BASE_URL,
         apiKey: SERVER_MANAGED_API_KEY,
+        apiTokenId: channel?.apiTokenId?.trim() || "",
         apiFormat,
         models: uniqueRawModels(channel?.models || []),
     };
@@ -331,6 +336,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         model: resolvedModel,
         baseUrl: AIKART_BASE_URL,
         apiKey: SERVER_MANAGED_API_KEY,
+        apiTokenId: channel.apiTokenId,
         apiFormat: seedanceModel ? "bytedance" : channel.apiFormat,
     };
 }
@@ -398,6 +404,10 @@ export function buildApiUrl(baseUrl: string, path: string) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     if (normalizedPath.startsWith("/v3/")) return `${AIKART_BASE_URL.replace(/\/+$/, "")}${normalizedPath}`;
     return `${AIKART_BASE_URL.replace(/\/+$/, "")}/v1${normalizedPath}`;
+}
+
+export function aikartTokenHeaders(config: Pick<AiConfig, "apiTokenId">): Record<string, string> {
+    return config.apiTokenId ? { "X-AikArt-Token-Id": config.apiTokenId } : {};
 }
 
 function scrubLegacyApiSecrets() {

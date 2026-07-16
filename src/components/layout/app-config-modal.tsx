@@ -141,7 +141,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
         try {
             const models = await fetchChannelModels(channel);
             updateChannels(config.channels.map((item) => (item.id === channel.id ? { ...item, models } : item)));
-            message.success(`${channel.name} 模型列表已更新`);
+            message.success(`${channel.name} 已获取 ${models.length} 个模型`);
         } catch (error) {
             message.error(error instanceof Error ? error.message : "读取模型失败");
         } finally {
@@ -160,7 +160,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
             const entries = await Promise.all(runnable.map(async (channel) => [channel.id, await fetchChannelModels(channel)] as const));
             const modelMap = new Map(entries);
             updateChannels(config.channels.map((channel) => (modelMap.has(channel.id) ? { ...channel, models: modelMap.get(channel.id) || [] } : channel)));
-            message.success("模型列表已更新");
+            const total = entries.reduce((sum, [, models]) => sum + models.length, 0);
+            message.success(`已为 ${entries.length} 个渠道获取 ${total} 个模型`);
         } catch (error) {
             message.error(error instanceof Error ? error.message : "读取模型失败");
         } finally {
@@ -288,8 +289,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Form.Item label="调用格式" className="mb-0">
                                                     <Select value={channel.apiFormat} options={apiFormatOptions} onChange={(value: ApiCallFormat) => updateChannelApiFormat(channel, value)} />
                                                 </Form.Item>
-                                                <Form.Item label="访问密钥（选择爱坤Ai令牌）" extra="切换后所有渠道同步使用该令牌；完整密钥仅保存在 AikArt 服务端。" className="mb-0 md:col-span-2">
-                                                    <AikartTokenPicker variant="field" />
+                                                <Form.Item label="访问密钥（选择爱坤Ai令牌）" extra="仅当前渠道使用该令牌；完整密钥仅保存在 AikArt 服务端。" className="mb-0 md:col-span-2">
+                                                    <AikartTokenPicker variant="field" value={channel.apiTokenId} onChange={(apiTokenId) => updateChannel(channel.id, { apiTokenId })} />
                                                 </Form.Item>
                                                 <Form.Item label="模型列表" className="mb-0 md:col-span-2">
                                                     <Select mode="tags" showSearch allowClear maxTagCount="responsive" placeholder="输入模型名，或点击拉取模型" value={channel.models} onChange={(models) => updateChannel(channel.id, { models })} />
@@ -535,6 +536,7 @@ function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
         models,
         baseUrl: AIKART_BASE_URL,
         apiKey: channels[0]?.apiKey || config.apiKey,
+        apiTokenId: channels[0]?.apiTokenId || "",
         apiFormat: channels[0]?.apiFormat || config.apiFormat,
         imageModels,
         videoModels,

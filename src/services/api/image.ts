@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { buildApiUrl, resolveCapabilityModel, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { aikartTokenHeaders, buildApiUrl, resolveCapabilityModel, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -274,6 +274,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 function aiHeaders(config: AiConfig, contentType?: string) {
     return {
         Authorization: `Bearer ${config.apiKey}`,
+        ...aikartTokenHeaders(config),
         ...(contentType ? { "Content-Type": contentType } : {}),
     };
 }
@@ -294,9 +295,10 @@ function geminiApiUrl(config: Pick<AiConfig, "baseUrl" | "model">, action?: "gen
     return `${baseUrl}/models/${encodeURIComponent(geminiModelName(config.model))}:${action}`;
 }
 
-function geminiHeaders(config: Pick<AiConfig, "apiKey">) {
+function geminiHeaders(config: Pick<AiConfig, "apiKey" | "apiTokenId">) {
     return {
         "x-goog-api-key": config.apiKey,
+        ...aikartTokenHeaders(config),
         "Content-Type": "application/json",
     };
 }
@@ -748,38 +750,56 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
     }
 }
 
-export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat">) {
+export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiTokenId" | "apiFormat">) {
     try {
         if (config.apiFormat === "bytedance") throw new Error("字节跳动渠道请在模型列表中手动填写模型名");
         if (config.apiFormat === "gemini") {
             const response = await axios.get<GeminiPayload>(geminiApiUrl({ ...defaultGeminiConfig, ...config }), { headers: geminiHeaders({ ...defaultGeminiConfig, ...config }) });
             validateGeminiPayload(response.data);
-            return (response.data.models || [])
-                .map((model) => model.name?.replace(/^models\//, ""))
-                .filter((id): id is string => Boolean(id))
-                .sort((a, b) => a.localeCompare(b));
+            return extractModelIds(response.data).map((id) => id.replace(/^models\//, ""));
         }
-        const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(config.baseUrl, "/models"), {
+        const response = await axios.get<unknown>(buildApiUrl(config.baseUrl, "/models"), {
             headers: {
                 Authorization: `Bearer ${config.apiKey}`,
+                ...aikartTokenHeaders(config),
             },
         });
-        return (response.data.data || [])
-            .map((model) => model.id)
-            .filter((id): id is string => Boolean(id))
-            .sort((a, b) => a.localeCompare(b));
+        return extractModelIds(response.data);
     } catch (error) {
         throw new Error(readAxiosError(error, "读取模型失败"));
     }
 }
 
 export async function fetchChannelModels(channel: ModelChannel) {
-    return fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiFormat: channel.apiFormat });
+    const models = await fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiTokenId: channel.apiTokenId, apiFormat: channel.apiFormat });
+    if (!models.length) throw new Error("接口请求成功，但爱坤Ai没有返回任何模型，请检查该令牌的模型权限");
+    return models;
 }
 
-const defaultGeminiConfig: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat" | "model" | "systemPrompt"> = {
+function extractModelIds(payload: unknown, depth = 0): string[] {
+    if (depth > 4 || payload === null || payload === undefined) return [];
+    if (Array.isArray(payload)) {
+        return Array.from(new Set(payload.flatMap((item) => {
+            if (typeof item === "string") return item.trim() ? [item.trim()] : [];
+            if (!item || typeof item !== "object") return [];
+            const record = item as Record<string, unknown>;
+            const value = [record.id, record.name, record.model].find((entry) => typeof entry === "string" && entry.trim());
+            return typeof value === "string" ? [value.trim()] : [];
+        }))).sort((a, b) => a.localeCompare(b));
+    }
+    if (typeof payload !== "object") return [];
+    const record = payload as Record<string, unknown>;
+    for (const key of ["data", "models", "items", "result"]) {
+        const models = extractModelIds(record[key], depth + 1);
+        if (models.length) return models;
+    }
+    return [];
+}
+
+const defaultGeminiConfig: Pick<AiConfig, "baseUrl" | "apiKey" | "apiTokenId" | "apiFormat" | "model" | "systemPrompt"> = {
     baseUrl: "https://generativelanguage.googleapis.com",
     apiKey: "",
+    apiTokenId: "",
     apiFormat: "gemini",
     model: "",
     systemPrompt: "",

@@ -2,7 +2,7 @@ import axios from "axios";
 
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
-import { buildApiUrl, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
+import { aikartTokenHeaders, buildApiUrl, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import { uploadGeneratedDraft } from "@/lib/platform-media";
 
 type RequestOptions = { signal?: AbortSignal };
@@ -14,6 +14,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 function aiHeaders(config: AiConfig) {
     return {
         Authorization: `Bearer ${config.apiKey}`,
+        ...aikartTokenHeaders(config),
         "Content-Type": "application/json",
     };
 }

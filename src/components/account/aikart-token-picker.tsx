@@ -25,12 +25,13 @@ type TokenResponse = {
     selectedTokenId: string | null;
 };
 
-export function AikartTokenPicker({ variant = "panel", className }: { variant?: "panel" | "field"; className?: string }) {
+export function AikartTokenPicker({ variant = "panel", className, value, onChange }: { variant?: "panel" | "field"; className?: string; value?: string; onChange?: (tokenId: string) => void }) {
     const { message } = App.useApp();
     const user = useAuthStore((state) => state.user);
     const setUser = useAuthStore((state) => state.setUser);
     const [items, setItems] = useState<UserToken[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(user?.selectedTokenId || null);
+    const controlledField = variant === "field" && Boolean(onChange);
+    const [selectedId, setSelectedId] = useState<string | null>(value || user?.selectedTokenId || null);
     const [loading, setLoading] = useState(false);
     const [switching, setSwitching] = useState(false);
 
@@ -39,24 +40,32 @@ export function AikartTokenPicker({ variant = "panel", className }: { variant?: 
         try {
             const result = await apiFetch<TokenResponse>("/api/account/tokens");
             setItems(result.items);
-            setSelectedId(result.selectedTokenId || result.items.find((item) => item.selected)?.id || null);
+            setSelectedId(value || result.selectedTokenId || result.items.find((item) => item.selected)?.id || null);
             if (showSuccess) message.success("令牌列表已刷新");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "读取爱坤Ai令牌失败");
         } finally {
             setLoading(false);
         }
-    }, [message]);
+    }, [message, value]);
 
     useEffect(() => {
         void load();
     }, [load]);
 
     useEffect(() => {
-        if (user?.selectedTokenId) setSelectedId(user.selectedTokenId);
-    }, [user?.selectedTokenId]);
+        if (value) setSelectedId(value);
+        else if (user?.selectedTokenId) setSelectedId(user.selectedTokenId);
+    }, [user?.selectedTokenId, value]);
 
     const selectToken = async (tokenId: string) => {
+        if (controlledField) {
+            if (value === tokenId) return;
+            setSelectedId(tokenId);
+            onChange?.(tokenId);
+            message.success("该渠道访问令牌已更新");
+            return;
+        }
         if (tokenId === selectedId) return;
         setSwitching(true);
         try {

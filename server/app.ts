@@ -12,6 +12,7 @@ import { appDb, billingDb } from "./db.js";
 import { ApiError } from "./errors.js";
 import { registerMediaRoutes } from "./media-routes.js";
 import { registerLibraryRoutes } from "./library-routes.js";
+import { getUserToken } from "./new-api.js";
 import { registerReferralRoutes } from "./referral-routes.js";
 import { registerWorkRoutes } from "./work-routes.js";
 
@@ -98,12 +99,26 @@ export async function buildApp() {
         upstream: config.newApiBaseUrl,
         prefix: "/api/ai",
         rewritePrefix: "",
-        preHandler: requireAuth,
+        preHandler: async (request) => {
+            await requireAuth(request);
+            const rawTokenId = request.headers["x-aikart-token-id"];
+            const tokenId = Array.isArray(rawTokenId) ? rawTokenId[0] : rawTokenId;
+            if (!tokenId) return;
+            if (!/^\d+$/.test(tokenId)) {
+                throw new ApiError(400, "渠道令牌格式不正确", "invalid_channel_token_id");
+            }
+            const token = await getUserToken(request.aikartUser!.newApiUserId, tokenId);
+            if (!token) {
+                throw new ApiError(403, "渠道令牌不存在、已禁用或不属于当前用户", "channel_token_forbidden");
+            }
+            request.aikartUser!.apiKey = token.key;
+        },
         replyOptions: {
             rewriteRequestHeaders: (request, headers) => {
                 const next = { ...headers } as Record<string, string | string[] | undefined>;
                 delete next.cookie;
                 delete next.host;
+                delete next["x-aikart-token-id"];
                 next.authorization = `Bearer ${request.aikartUser!.apiKey}`;
                 next["x-goog-api-key"] = request.aikartUser!.apiKey;
                 return next;
