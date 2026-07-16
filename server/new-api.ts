@@ -8,6 +8,8 @@ import { billingDb } from "./db.js";
 import { ApiError } from "./errors.js";
 import type { BillingUserRow } from "./types.js";
 
+type NewApiToken = { id: string; key: string; name: string; group?: string };
+
 type NewApiLoginBody = {
     success?: boolean;
     message?: string;
@@ -94,8 +96,9 @@ export async function getOrCreateAikartToken(userId: number, group: string, pref
 }
 
 export async function getUserToken(userId: number, tokenId: string) {
-    const result = await billingDb.query<{ id: string; key: string; name: string }>(
+    const result = await billingDb.query<{ id: string; key: string; name: string; group: string }>(
         `SELECT id::text, key, name
+                , "group"
          FROM tokens
          WHERE id = $2::bigint AND user_id = $1 AND status = 1 AND deleted_at IS NULL
          LIMIT 1`,
@@ -140,8 +143,65 @@ export async function listUserTokens(userId: number, selectedTokenId?: string | 
     });
 }
 
-function normalizeToken(token: { id: string; key: string; name: string }) {
-    return { id: token.id, key: bearerKey(token.key), name: token.name || "AikArt" };
+export async function fetchNewApiModels(token: NewApiToken) {
+    let response: Response;
+    try {
+        response = await fetch(`${config.newApiBaseUrl}/v1/models`, {
+            headers: { Accept: "application/json", Authorization: `Bearer ${token.key}` },
+            signal: AbortSignal.timeout(15_000),
+        });
+    } catch (error) {
+        throw new ApiError(502, `无法连接爱坤Ai模型服务：${error instanceof Error ? error.message : "网络错误"}`, "new_api_models_unavailable");
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = payload && typeof payload === "object" && "error" in payload && payload.error && typeof payload.error === "object"
+            ? String((payload.error as Record<string, unknown>).message || "模型接口请求失败")
+            : "模型接口请求失败";
+        throw new ApiError(response.status, message, "new_api_models_error");
+    }
+
+    const models = extractModelIds(payload);
+    if (models.length || !token.group?.trim()) return models;
+
+    // Some New API deployments return an empty /v1/models list for group tokens.
+    // The abilities table is the authoritative fallback for that token group.
+    try {
+        const result = await billingDb.query<{ model: string }>(
+            `SELECT DISTINCT model
+             FROM abilities
+             WHERE "group" = $1 AND enabled = true AND model IS NOT NULL AND model <> ''
+             ORDER BY model`,
+            [token.group.trim()],
+        );
+        return result.rows.map((row) => row.model.trim()).filter(Boolean);
+    } catch {
+        return models;
+    }
+}
+
+function normalizeToken(token: { id: string; key: string; name: string; group?: string }) {
+    return { id: token.id, key: bearerKey(token.key), name: token.name || "AikArt", group: token.group || "" };
+}
+
+function extractModelIds(payload: unknown): string[] {
+    if (Array.isArray(payload)) {
+        return Array.from(new Set(payload.flatMap((item) => {
+            if (typeof item === "string") return item.trim() ? [item.trim()] : [];
+            if (!item || typeof item !== "object") return [];
+            const record = item as Record<string, unknown>;
+            const value = [record.id, record.name, record.model].find((entry) => typeof entry === "string" && entry.trim());
+            return typeof value === "string" ? [value.trim()] : [];
+        }))).sort((a, b) => a.localeCompare(b));
+    }
+    if (!payload || typeof payload !== "object") return [];
+    const record = payload as Record<string, unknown>;
+    for (const key of ["data", "models", "items", "result"]) {
+        const models = extractModelIds(record[key]);
+        if (models.length) return models;
+    }
+    return [];
 }
 
 function epochDate(value: string) {

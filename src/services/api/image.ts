@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { aikartTokenHeaders, buildApiUrl, resolveCapabilityModel, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { apiFetch } from "@/lib/api-client";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -771,6 +772,13 @@ export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKe
 }
 
 export async function fetchChannelModels(channel: ModelChannel) {
+    if (channel.apiFormat !== "gemini") {
+        const query = channel.apiTokenId ? `?tokenId=${encodeURIComponent(channel.apiTokenId)}` : "";
+        const result = await apiFetch<{ models?: unknown }>(`/api/account/channel-models${query}`);
+        const models = Array.isArray(result.models) ? result.models.filter((model): model is string => typeof model === "string" && Boolean(model.trim())).map((model) => model.trim()) : [];
+        if (!models.length) throw new Error("接口请求成功，但爱坤Ai没有返回任何模型，请检查该令牌的模型权限");
+        return Array.from(new Set(models)).sort((a, b) => a.localeCompare(b));
+    }
     const models = await fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiTokenId: channel.apiTokenId, apiFormat: channel.apiFormat });
     if (!models.length) throw new Error("接口请求成功，但爱坤Ai没有返回任何模型，请检查该令牌的模型权限");
     return models;

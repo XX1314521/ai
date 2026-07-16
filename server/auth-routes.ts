@@ -12,7 +12,7 @@ import {
     setSessionCookie,
 } from "./auth.js";
 import { authenticateNewApi } from "./new-api.js";
-import { getUserToken, listUserTokens } from "./new-api.js";
+import { fetchNewApiModels, getOrCreateAikartToken, getUserToken, listUserTokens } from "./new-api.js";
 import { config } from "./config.js";
 import { encryptText, maskApiKey } from "./crypto.js";
 import { appDb } from "./db.js";
@@ -69,6 +69,22 @@ export async function registerAuthRoutes(app: FastifyInstance) {
             items: await listUserTokens(user.newApiUserId, user.selectedTokenId),
             selectedTokenId: user.selectedTokenId,
         };
+    });
+
+    app.get("/api/account/channel-models", { preHandler: requireAuth }, async (request) => {
+        const query = request.query as { tokenId?: unknown };
+        const requestedTokenId = typeof query.tokenId === "string" ? query.tokenId.trim() : "";
+        if (requestedTokenId && !/^\d+$/.test(requestedTokenId)) {
+            throw new ApiError(400, "渠道令牌格式不正确", "invalid_token_id");
+        }
+        const user = request.aikartUser!;
+        const token = requestedTokenId
+            ? await getUserToken(user.newApiUserId, requestedTokenId)
+            : user.selectedTokenId
+              ? await getUserToken(user.newApiUserId, user.selectedTokenId)
+              : await getOrCreateAikartToken(user.newApiUserId, "default");
+        if (!token) throw new ApiError(404, "渠道令牌不存在、已禁用或不属于当前用户", "token_not_found");
+        return { models: await fetchNewApiModels(token), tokenId: token.id };
     });
 
     app.put("/api/account/token", { preHandler: requireAuth }, async (request) => {
