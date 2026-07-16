@@ -31,7 +31,7 @@ const kindOptions = [
     { label: "视频", value: "video" },
 ];
 
-export default function AssetsPage() {
+export default function AssetsPage({ embedded = false }: { embedded?: boolean }) {
     const { message } = App.useApp();
     const copyText = useCopyText();
     const [form] = Form.useForm<AssetFormValues>();
@@ -223,15 +223,15 @@ export default function AssetsPage() {
     };
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-900 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)]">
-                <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
+        <div className={cn(embedded ? "aikart-assets-embedded text-stone-900" : "flex h-full flex-col overflow-hidden bg-background text-stone-900 dark:text-stone-100")}>
+            <main className={cn(embedded ? "bg-transparent" : "min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)]")}>
+                <div className={cn(!embedded && "pb-8")}>
+                    <div className={cn("mx-auto max-w-5xl text-center", embedded && "sr-only")}>
                         <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">我的素材</h1>
                         <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">收藏常用文本和图片，按类型、标题和标签快速查找。</p>
                     </div>
 
-                    <div className="mx-auto mt-8 w-full max-w-2xl">
+                    <div className={cn("mx-auto w-full max-w-2xl", !embedded && "mt-8")}>
                         <Input.Search
                             className="w-full"
                             size="large"

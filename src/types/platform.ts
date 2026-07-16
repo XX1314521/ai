@@ -9,6 +9,7 @@ export type PlatformUser = {
     inviteCode: string;
     invitedByUserId: string | null;
     apiKeyHint: string;
+    selectedTokenId: string | null;
     balance: number;
     inviteLink: string;
     retentionDays: number;

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 
 import { config } from "./config.js";
+import { maskApiKey } from "./crypto.js";
 import { billingDb } from "./db.js";
 import { ApiError } from "./errors.js";
 import type { BillingUserRow } from "./types.js";
@@ -46,7 +47,7 @@ export async function authenticateNewApi(username: string, password: string) {
         throw new ApiError(403, "爱坤Ai账户不可用", "account_disabled");
     }
 
-    const apiKey = await getOrCreateAikartToken(userId, billingUser.group);
+    const apiToken = await getOrCreateAikartToken(userId, billingUser.group);
     return {
         userId,
         username: billingUser.username || String(body.data?.username || username),
@@ -54,7 +55,8 @@ export async function authenticateNewApi(username: string, password: string) {
         avatarUrl: String(body.data?.profile_picture || body.data?.avatar_url || ""),
         role: Number(billingUser.role) || 1,
         quota: Number(billingUser.quota) || 0,
-        apiKey,
+        apiKey: apiToken.key,
+        apiTokenId: apiToken.id,
     };
 }
 
@@ -67,24 +69,84 @@ export async function getBillingUser(userId: number, client?: PoolClient) {
     return result.rows[0] || null;
 }
 
-async function getOrCreateAikartToken(userId: number, group: string) {
-    const existing = await billingDb.query<{ key: string }>(
-        "SELECT key FROM tokens WHERE user_id = $1 AND status = 1 AND deleted_at IS NULL ORDER BY (name = 'AikArt') DESC, id ASC LIMIT 1",
+export async function getOrCreateAikartToken(userId: number, group: string, preferredTokenId?: string | null) {
+    if (preferredTokenId) {
+        const preferred = await getUserToken(userId, preferredTokenId);
+        if (preferred) return preferred;
+    }
+    const existing = await billingDb.query<{ id: string; key: string; name: string }>(
+        "SELECT id::text, key, name FROM tokens WHERE user_id = $1 AND status = 1 AND deleted_at IS NULL ORDER BY (name = 'AikArt') DESC, id ASC LIMIT 1",
         [userId],
     );
-    if (existing.rows[0]?.key) return bearerKey(existing.rows[0].key);
+    if (existing.rows[0]?.key) return normalizeToken(existing.rows[0]);
 
     const storedKey = randomBytes(36).toString("base64url");
     const now = Math.floor(Date.now() / 1000);
-    const inserted = await billingDb.query<{ key: string }>(
+    const inserted = await billingDb.query<{ id: string; key: string; name: string }>(
         `INSERT INTO tokens
             (user_id, key, status, name, created_time, accessed_time, expired_time, remain_quota, unlimited_quota,
              model_limits_enabled, model_limits, allow_ips, used_quota, "group", cross_group_retry)
          VALUES ($1, $2, 1, 'AikArt', $3, 0, -1, 0, true, false, '', '', 0, $4, false)
-         RETURNING key`,
+         RETURNING id::text, key, name`,
         [userId, storedKey, now, group || "default"],
     );
-    return bearerKey(inserted.rows[0]?.key || storedKey);
+    return normalizeToken(inserted.rows[0] || { id: "", key: storedKey, name: "AikArt" });
+}
+
+export async function getUserToken(userId: number, tokenId: string) {
+    const result = await billingDb.query<{ id: string; key: string; name: string }>(
+        `SELECT id::text, key, name
+         FROM tokens
+         WHERE id = $2::bigint AND user_id = $1 AND status = 1 AND deleted_at IS NULL
+         LIMIT 1`,
+        [userId, tokenId],
+    );
+    return result.rows[0] ? normalizeToken(result.rows[0]) : null;
+}
+
+export async function listUserTokens(userId: number, selectedTokenId?: string | null) {
+    const result = await billingDb.query<{
+        id: string;
+        name: string;
+        key: string;
+        created_time: string;
+        accessed_time: string;
+        expired_time: string;
+        unlimited_quota: boolean;
+        remain_quota: string;
+        group: string;
+    }>(
+        `SELECT id::text, name, key, created_time, accessed_time, expired_time,
+                unlimited_quota, remain_quota, "group"
+         FROM tokens
+         WHERE user_id = $1 AND status = 1 AND deleted_at IS NULL
+         ORDER BY (id::text = $2) DESC, (name = 'AikArt') DESC, id ASC`,
+        [userId, selectedTokenId || ""],
+    );
+    return result.rows.map((row) => {
+        const key = bearerKey(row.key);
+        return {
+            id: row.id,
+            name: row.name || `令牌 ${row.id}`,
+            hint: maskApiKey(key),
+            selected: row.id === selectedTokenId,
+            createdAt: epochDate(row.created_time),
+            lastUsedAt: epochDate(row.accessed_time),
+            expiresAt: Number(row.expired_time) > 0 ? epochDate(row.expired_time) : null,
+            unlimited: Boolean(row.unlimited_quota),
+            remainingBalance: quotaToDisplay(Number(row.remain_quota) || 0),
+            group: row.group || "default",
+        };
+    });
+}
+
+function normalizeToken(token: { id: string; key: string; name: string }) {
+    return { id: token.id, key: bearerKey(token.key), name: token.name || "AikArt" };
+}
+
+function epochDate(value: string) {
+    const seconds = Number(value);
+    return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
 }
 
 function bearerKey(value: string) {

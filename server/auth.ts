@@ -71,6 +71,7 @@ export async function loadAuthenticatedUser(token?: string): Promise<Authenticat
         invitedByUserId: row.invited_by_user_id,
         apiKey: decryptText(row.encrypted_api_key, config.contentEncryptionKey),
         apiKeyHint: row.api_key_hint,
+        selectedTokenId: row.selected_token_id,
         quota: Number(billingUser.quota) || 0,
     };
 }
@@ -87,6 +88,7 @@ export function publicUser(user: AuthenticatedUser): PublicUser {
         inviteCode: user.inviteCode,
         invitedByUserId: user.invitedByUserId,
         apiKeyHint: user.apiKeyHint,
+        selectedTokenId: user.selectedTokenId,
         balance: quotaToDisplay(user.quota),
         inviteLink: `${config.publicOrigin}/login?invite=${encodeURIComponent(user.inviteCode)}`,
         retentionDays: config.draftRetentionDays,

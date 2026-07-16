@@ -13,10 +13,12 @@ export async function migrateDatabases() {
     const appMigration = await readFile(fileURLToPath(new URL("./migrations/001_init.sql", import.meta.url)), "utf8");
     const marketplaceMigration = await readFile(fileURLToPath(new URL("./migrations/003_marketplace.sql", import.meta.url)), "utf8");
     const libraryMigration = await readFile(fileURLToPath(new URL("./migrations/004_library.sql", import.meta.url)), "utf8");
+    const userTokenMigration = await readFile(fileURLToPath(new URL("./migrations/005_user_tokens.sql", import.meta.url)), "utf8");
     const billingMigration = await readFile(fileURLToPath(new URL("./migrations/002_billing.sql", import.meta.url)), "utf8");
     await appDb.query(appMigration);
     await appDb.query(marketplaceMigration);
     await appDb.query(libraryMigration);
+    await appDb.query(userTokenMigration);
     const billingTable = await billingDb.query<{ table_name: string | null }>(
         "SELECT to_regclass('public.aikart_balance_settlements')::text AS table_name",
     );

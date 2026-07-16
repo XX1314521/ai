@@ -1,7 +1,8 @@
 import { App, Button, Skeleton, Table, Tag } from "antd";
 import { Copy, Gift, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { useCopyText } from "@/hooks/use-copy-text";
 import { apiFetch } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/use-auth-store";
 
@@ -16,13 +17,14 @@ type ReferralData = {
     recent: Array<{ id: string; workTitle: string; buyerName: string; commission: number; completedAt: string }>;
 };
 
-export default function AccountPage() {
+export default function AccountPage({ embedded = false }: { embedded?: boolean }) {
     const { message } = App.useApp();
+    const copyText = useCopyText();
     const user = useAuthStore((state) => state.user)!;
     const refresh = useAuthStore((state) => state.refresh);
     const [data, setData] = useState<ReferralData | null>(null);
     const [loading, setLoading] = useState(true);
-    const load = async () => {
+    const load = useCallback(async () => {
         setLoading(true);
         try {
             const result = await apiFetch<ReferralData>("/api/referrals/me");
@@ -33,16 +35,12 @@ export default function AccountPage() {
         } finally {
             setLoading(false);
         }
-    };
-    useEffect(() => { void load(); }, []);
-    const copy = async (value: string) => {
-        await navigator.clipboard.writeText(value);
-        message.success("已复制");
-    };
+    }, [message, refresh]);
+    useEffect(() => { void load(); }, [load]);
 
     return (
-        <main className="aikart-account-page h-full overflow-y-auto">
-            <div className="mx-auto max-w-6xl px-5 py-7 sm:px-8">
+        <main className={embedded ? "aikart-account-page aikart-account-embedded" : "aikart-account-page h-full overflow-y-auto"}>
+            <div className={embedded ? "" : "mx-auto max-w-6xl px-5 py-7 sm:px-8"}>
                 <header className="aikart-page-heading"><div><span>ACCOUNT</span><h1>账户与邀请</h1><p>余额与爱坤Ai实时同步</p></div><Button icon={<RefreshCw className="size-4" />} loading={loading} onClick={() => void load()}>刷新</Button></header>
                 {loading && !data ? <Skeleton active /> : <>
                     <section className="aikart-metric-grid">
@@ -52,8 +50,8 @@ export default function AccountPage() {
                     </section>
                     <section className="aikart-account-section">
                         <div className="aikart-section-title"><div><h2>我的邀请码</h2><p>受邀用户首次登录时填写即可绑定</p></div>{data?.inviter ? <Tag>邀请人：{data.inviter.displayName}</Tag> : null}</div>
-                        <div className="aikart-invite-row"><code>{data?.inviteCode}</code><Button icon={<Copy className="size-4" />} onClick={() => void copy(data?.inviteCode || "")}>复制邀请码</Button></div>
-                        <div className="aikart-invite-row"><code>{data?.inviteLink}</code><Button type="primary" icon={<Copy className="size-4" />} onClick={() => void copy(data?.inviteLink || "")}>复制邀请链接</Button></div>
+                        <div className="aikart-invite-row"><code>{data?.inviteCode}</code><Button icon={<Copy className="size-4" />} onClick={() => copyText(data?.inviteCode || "")}>复制邀请码</Button></div>
+                        <div className="aikart-invite-row"><code>{data?.inviteLink}</code><Button type="primary" icon={<Copy className="size-4" />} onClick={() => copyText(data?.inviteLink || "")}>复制邀请链接</Button></div>
                     </section>
                     <section className="aikart-account-section">
                         <div className="aikart-section-title"><div><h2>佣金记录</h2><p>佣金从平台手续费中支付，不会额外向买家收费</p></div><Tag color="green">{data?.commissionOrders || 0} 笔</Tag></div>

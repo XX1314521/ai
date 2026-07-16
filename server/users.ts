@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { appDb, billingDb } from "./db.js";
 import { encryptText, maskApiKey, randomToken } from "./crypto.js";
 import { config } from "./config.js";
+import { getUserToken } from "./new-api.js";
 import type { AikartUserRow, BillingUserRow } from "./types.js";
 
 let billingColumns: Set<string> | null = null;
@@ -90,6 +91,7 @@ export async function upsertLoggedInUser(input: {
     avatarUrl: string;
     role: number;
     apiKey: string;
+    apiTokenId: string;
     inviteCode?: string;
 }) {
     const existing = await appDb.query<AikartUserRow>("SELECT * FROM aikart_users WHERE new_api_user_id = $1", [input.newApiUserId]);
@@ -108,17 +110,24 @@ export async function upsertLoggedInUser(input: {
     }
     if (inviter?.new_api_user_id === String(input.newApiUserId)) inviter = null;
 
+    const preferredToken = existing.rows[0]?.selected_token_id
+        ? await getUserToken(input.newApiUserId, existing.rows[0].selected_token_id)
+        : null;
+    const selectedTokenId = preferredToken?.id || input.apiTokenId;
+    const selectedApiKey = preferredToken?.key || input.apiKey;
+
     const result = await appDb.query<AikartUserRow>(
         `INSERT INTO aikart_users
-            (id, new_api_user_id, username, display_name, avatar_url, encrypted_api_key, api_key_hint, new_api_role,
-             invite_code, invited_by_user_id, last_login_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+            (id, new_api_user_id, username, display_name, avatar_url, encrypted_api_key, api_key_hint,
+             selected_token_id, new_api_role, invite_code, invited_by_user_id, last_login_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
          ON CONFLICT (new_api_user_id) DO UPDATE SET
             username = EXCLUDED.username,
             display_name = EXCLUDED.display_name,
             avatar_url = EXCLUDED.avatar_url,
             encrypted_api_key = EXCLUDED.encrypted_api_key,
             api_key_hint = EXCLUDED.api_key_hint,
+            selected_token_id = EXCLUDED.selected_token_id,
             new_api_role = EXCLUDED.new_api_role,
             invited_by_user_id = COALESCE(aikart_users.invited_by_user_id, EXCLUDED.invited_by_user_id),
             updated_at = now(),
@@ -130,8 +139,9 @@ export async function upsertLoggedInUser(input: {
             input.username,
             input.displayName,
             input.avatarUrl,
-            encryptText(input.apiKey, config.contentEncryptionKey),
-            maskApiKey(input.apiKey),
+            encryptText(selectedApiKey, config.contentEncryptionKey),
+            maskApiKey(selectedApiKey),
+            selectedTokenId,
             input.role,
             ownInviteCode,
             inviter?.id || existing.rows[0]?.invited_by_user_id || null,

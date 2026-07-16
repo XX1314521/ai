@@ -3,13 +3,13 @@ import { CircleAlert, Cloud, KeyRound, Link2, Plus, RefreshCw, ShieldCheck, Tras
 import { useEffect, useState } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
+import { AikartTokenPicker } from "@/components/account/aikart-token-picker";
 import { fetchChannelModels } from "@/services/api/image";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
 import { useAgentStore } from "@/stores/use-agent-store";
-import { AIKART_BASE_URL, AIKART_PROVIDER_URL, createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
-import { useAuthStore } from "@/stores/use-auth-store";
+import { AIKART_BASE_URL, createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -67,7 +67,6 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 
 export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
     const { message } = App.useApp();
-    const user = useAuthStore((state) => state.user);
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [loadingChannelId, setLoadingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
@@ -289,15 +288,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Form.Item label="调用格式" className="mb-0">
                                                     <Select value={channel.apiFormat} options={apiFormatOptions} onChange={(value: ApiCallFormat) => updateChannelApiFormat(channel, value)} />
                                                 </Form.Item>
-                                                <Form.Item label="爱坤Ai 服务（固定）" className="mb-0">
-                                                    <div className="flex h-8 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300" aria-label="固定 Base URL">
-                                                        {AIKART_PROVIDER_URL}
-                                                    </div>
-                                                </Form.Item>
-                                                <Form.Item label="访问密钥（登录后自动获取）" extra="完整密钥仅保存在 AikArt 服务端，浏览器不会接收。" className="mb-0">
-                                                    <div className="flex h-8 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 font-mono text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
-                                                        {user?.apiKeyHint || "登录后自动获取"}
-                                                    </div>
+                                                <Form.Item label="访问密钥（选择爱坤Ai令牌）" extra="切换后所有渠道同步使用该令牌；完整密钥仅保存在 AikArt 服务端。" className="mb-0 md:col-span-2">
+                                                    <AikartTokenPicker variant="field" />
                                                 </Form.Item>
                                                 <Form.Item label="模型列表" className="mb-0 md:col-span-2">
                                                     <Select mode="tags" showSearch allowClear maxTagCount="responsive" placeholder="输入模型名，或点击拉取模型" value={channel.models} onChange={(models) => updateChannel(channel.id, { models })} />

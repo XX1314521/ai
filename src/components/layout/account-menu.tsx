@@ -1,5 +1,5 @@
 import { Avatar, Button, Dropdown, type MenuProps } from "antd";
-import { Gift, LogIn, LogOut, Settings2, ShieldCheck, UserRound, WalletCards } from "lucide-react";
+import { LogIn, LogOut, Settings2, ShieldCheck, UserRound, WalletCards } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "@/stores/use-auth-store";
@@ -33,14 +33,14 @@ export function AccountMenu() {
         },
         { type: "divider" },
         { key: "balance", icon: <WalletCards className="size-4" />, label: `余额 ${formatBalance(user.balance)}` },
-        { key: "account", icon: <Gift className="size-4" />, label: "账户与邀请" },
+        { key: "profile", icon: <UserRound className="size-4" />, label: "个人资料" },
         { key: "config", icon: <Settings2 className="size-4" />, label: "模型配置" },
         ...(user.role === "admin" ? [{ key: "admin", icon: <ShieldCheck className="size-4" />, label: "后台管理" }] : []),
         { type: "divider" },
         { key: "logout", icon: <LogOut className="size-4" />, label: "退出登录", danger: true },
     ];
     const onClick: MenuProps["onClick"] = async ({ key }) => {
-        if (key === "account" || key === "balance") navigate("/account");
+        if (key === "profile" || key === "balance") navigate("/profile");
         if (key === "config") openConfigDialog(false, "channels");
         if (key === "admin") navigate("/admin");
         if (key === "logout") {

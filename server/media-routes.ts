@@ -134,19 +134,24 @@ export async function registerMediaRoutes(app: FastifyInstance) {
 async function streamMedia(request: FastifyRequest, reply: FastifyReply, download: boolean) {
     const { id } = request.params as { id: string };
     const user = await authenticateRequest(request);
-    const result = await appDb.query<MediaRow & { is_public: boolean }>(
+    const result = await appDb.query<MediaRow & { is_public: boolean; is_purchased: boolean }>(
         `SELECT m.*,
             EXISTS (
                 SELECT 1 FROM aikart_works w
                 WHERE w.media_id = m.id AND w.status = 'published' AND w.access_type IN ('free', 'paid')
-            ) AS is_public
+            ) AS is_public,
+            EXISTS (
+                SELECT 1 FROM aikart_works w
+                JOIN aikart_purchases p ON p.work_id = w.id
+                WHERE w.media_id = m.id AND p.buyer_id = $2::uuid AND p.status = 'completed'
+            ) AS is_purchased
          FROM aikart_media m
          WHERE m.id = $1 AND m.deleted_at IS NULL`,
-        [id],
+        [id, user?.id || null],
     );
     const media = result.rows[0];
     if (!media) throw new ApiError(404, "素材不存在", "media_not_found");
-    const allowed = media.is_public || user?.id === media.owner_id || user?.role === "admin";
+    const allowed = media.is_public || media.is_purchased || user?.id === media.owner_id || user?.role === "admin";
     if (!allowed) throw new ApiError(403, "无权访问该素材", "media_forbidden");
 
     const object = await getMedia(media.object_key);

@@ -12,6 +12,7 @@ type AuthStore = {
     login: (input: { username: string; password: string; inviteCode?: string }) => Promise<PlatformUser>;
     logout: () => Promise<void>;
     refresh: () => Promise<PlatformUser | null>;
+    setUser: (user: PlatformUser) => void;
     setBalance: (balance: number) => void;
 };
 
@@ -56,6 +57,22 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         await apiFetch<{ success: boolean }>("/api/auth/logout", { method: "POST" }).catch(() => undefined);
         set({ user: null, status: "anonymous" });
     },
-    refresh: async () => get().initialize(true),
+    refresh: async () => {
+        const previousUser = get().user;
+        try {
+            const { user } = await apiFetch<{ user: PlatformUser | null }>("/api/auth/me");
+            set({ user, status: user ? "authenticated" : "anonymous" });
+            return user;
+        } catch {
+            // A transient refresh failure must not unmount the active workspace.
+            if (previousUser) {
+                set({ user: previousUser, status: "authenticated" });
+                return previousUser;
+            }
+            set({ user: null, status: "anonymous" });
+            return null;
+        }
+    },
+    setUser: (user) => set({ user, status: "authenticated" }),
     setBalance: (balance) => set((state) => ({ user: state.user ? { ...state.user, balance } : null })),
 }));

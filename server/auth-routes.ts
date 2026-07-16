@@ -12,6 +12,11 @@ import {
     setSessionCookie,
 } from "./auth.js";
 import { authenticateNewApi } from "./new-api.js";
+import { getUserToken, listUserTokens } from "./new-api.js";
+import { config } from "./config.js";
+import { encryptText, maskApiKey } from "./crypto.js";
+import { appDb } from "./db.js";
+import { ApiError } from "./errors.js";
 import { recordBody, textValue } from "./http.js";
 import { upsertLoggedInUser } from "./users.js";
 
@@ -32,6 +37,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
                 avatarUrl: upstream.avatarUrl,
                 role: upstream.role,
                 apiKey: upstream.apiKey,
+                apiTokenId: upstream.apiTokenId,
                 inviteCode,
             });
             const session = await createSession(row.id);
@@ -55,5 +61,33 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
     app.get("/api/account/balance", { preHandler: requireAuth }, async (request) => {
         return { balance: publicUser(request.aikartUser!).balance };
+    });
+
+    app.get("/api/account/tokens", { preHandler: requireAuth }, async (request) => {
+        const user = request.aikartUser!;
+        return {
+            items: await listUserTokens(user.newApiUserId, user.selectedTokenId),
+            selectedTokenId: user.selectedTokenId,
+        };
+    });
+
+    app.put("/api/account/token", { preHandler: requireAuth }, async (request) => {
+        const body = recordBody(request.body);
+        const tokenId = textValue(body.tokenId, "令牌", { required: true, max: 30 });
+        if (!/^\d+$/.test(tokenId)) throw new ApiError(400, "令牌格式不正确", "invalid_token_id");
+        const user = request.aikartUser!;
+        const token = await getUserToken(user.newApiUserId, tokenId);
+        if (!token) throw new ApiError(404, "令牌不存在、已禁用或不属于当前用户", "token_not_found");
+        const hint = maskApiKey(token.key);
+        await appDb.query(
+            `UPDATE aikart_users
+             SET encrypted_api_key = $2, api_key_hint = $3, selected_token_id = $4::bigint, updated_at = now()
+             WHERE id = $1`,
+            [user.id, encryptText(token.key, config.contentEncryptionKey), hint, token.id],
+        );
+        user.apiKey = token.key;
+        user.apiKeyHint = hint;
+        user.selectedTokenId = token.id;
+        return { user: publicUser(user) };
     });
 }

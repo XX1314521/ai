@@ -6,6 +6,7 @@ export type AikartUserRow = {
     avatar_url: string;
     encrypted_api_key: string | null;
     api_key_hint: string;
+    selected_token_id: string | null;
     new_api_role: number;
     status: "active" | "banned";
     invite_code: string;
@@ -36,6 +37,7 @@ export type AuthenticatedUser = {
     invitedByUserId: string | null;
     apiKey: string;
     apiKeyHint: string;
+    selectedTokenId: string | null;
     quota: number;
 };
 

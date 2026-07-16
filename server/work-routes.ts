@@ -381,16 +381,33 @@ export async function registerWorkRoutes(app: FastifyInstance) {
             id: string;
             work_id: string;
             title: string;
+            description: string;
             price_quota: string;
             status: string;
             created_at: Date;
             completed_at: Date | null;
+            owner_username: string;
+            owner_display_name: string;
+            owner_avatar_url: string;
+            media_id: string;
+            media_mime_type: string;
+            media_width: number | null;
+            media_height: number | null;
         }>(
-            `SELECT p.id, p.work_id, w.title, p.price_quota, p.status, p.created_at, p.completed_at
+            `SELECT p.id, p.work_id, w.title, w.description, p.price_quota, p.status, p.created_at, p.completed_at,
+                    seller.username AS owner_username,
+                    seller.display_name AS owner_display_name,
+                    seller.avatar_url AS owner_avatar_url,
+                    media.id AS media_id,
+                    media.mime_type AS media_mime_type,
+                    media.width AS media_width,
+                    media.height AS media_height
              FROM aikart_purchases p
              JOIN aikart_works w ON w.id = p.work_id
-             WHERE p.buyer_id = $1
-             ORDER BY p.created_at DESC
+             JOIN aikart_users seller ON seller.id = w.owner_id
+             JOIN aikart_media media ON media.id = w.media_id AND media.deleted_at IS NULL
+             WHERE p.buyer_id = $1 AND p.status = 'completed' AND w.status <> 'deleted'
+             ORDER BY p.completed_at DESC NULLS LAST, p.created_at DESC
              LIMIT 100`,
             [request.aikartUser!.id],
         );
@@ -399,10 +416,23 @@ export async function registerWorkRoutes(app: FastifyInstance) {
                 id: row.id,
                 workId: row.work_id,
                 title: row.title,
+                description: row.description,
                 price: quotaToDisplay(Number(row.price_quota)),
                 status: row.status,
                 createdAt: row.created_at,
-                completedAt: row.completed_at,
+                completedAt: row.completed_at || row.created_at,
+                owner: {
+                    username: row.owner_username,
+                    displayName: row.owner_display_name || row.owner_username,
+                    avatarUrl: row.owner_avatar_url,
+                },
+                media: {
+                    id: row.media_id,
+                    mimeType: row.media_mime_type,
+                    width: row.media_width,
+                    height: row.media_height,
+                    url: `/api/media/${row.media_id}/content`,
+                },
             })),
         };
     });
@@ -422,7 +452,13 @@ async function promptAccess(workId: string, userId?: string, admin = false) {
                 ) AS purchased
          FROM aikart_works w
          WHERE w.id = $1 AND w.status <> 'deleted'
-           AND (w.status = 'published' OR w.owner_id = $2::uuid OR $3::boolean)`,
+           AND (
+               w.status = 'published' OR w.owner_id = $2::uuid OR $3::boolean OR
+               EXISTS (
+                   SELECT 1 FROM aikart_purchases p
+                   WHERE p.work_id = w.id AND p.buyer_id = $2::uuid AND p.status = 'completed'
+               )
+           )`,
         [workId, userId || null, admin],
     );
     const row = result.rows[0];

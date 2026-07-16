@@ -1,4 +1,4 @@
-import { Clapperboard, FileText, GalleryHorizontalEnd, ImagePlus, Images, Maximize2, Settings2, ShoppingBag, Video } from "lucide-react";
+import { Clapperboard, FileText, GalleryHorizontalEnd, ImagePlus, Maximize2, Settings2, ShoppingBag, UserRound, Video } from "lucide-react";
 
 export const navigationTools = [
     {
@@ -32,14 +32,14 @@ export const navigationTools = [
         icon: FileText,
     },
     {
-        slug: "assets",
-        label: "我的素材",
-        icon: Images,
-    },
-    {
         slug: "showcase",
         label: "作品展示",
         icon: GalleryHorizontalEnd,
+    },
+    {
+        slug: "profile",
+        label: "个人资料",
+        icon: UserRound,
     },
     {
         slug: "config",
